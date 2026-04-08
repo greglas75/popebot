@@ -1,0 +1,1 @@
+ALTER TABLE `cluster_workers` DROP COLUMN `replica_index`;

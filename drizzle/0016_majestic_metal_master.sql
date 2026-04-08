@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `last_used_at` integer;

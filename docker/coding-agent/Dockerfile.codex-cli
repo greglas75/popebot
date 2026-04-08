@@ -1,0 +1,13 @@
+ARG BASE_IMAGE=coding-agent-base
+FROM ${BASE_IMAGE}
+
+USER root
+
+RUN npm install -g @openai/codex
+
+RUN mkdir -p /home/coding-agent/.codex \
+    && chown -R coding-agent:coding-agent /home/coding-agent/.codex
+
+USER coding-agent
+
+ENV AGENT=codex-cli

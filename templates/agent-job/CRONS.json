@@ -1,0 +1,16 @@
+[
+  {
+    "name": "heartbeat",
+    "schedule": "*/30 * * * *",
+    "type": "agent",
+    "job": "Read the file at agent-job/HEARTBEAT.md and complete the tasks described there.",
+    "enabled": false
+  },
+  {
+    "name": "ping",
+    "schedule": "*/1 * * * *",
+    "type": "command",
+    "command": "echo \"pong!\"",
+    "enabled": true
+  }
+]

@@ -1,0 +1,1 @@
+ALTER TABLE `clusters` ADD `system_prompt` text DEFAULT '' NOT NULL;

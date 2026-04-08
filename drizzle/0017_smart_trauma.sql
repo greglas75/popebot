@@ -1,0 +1,1 @@
+ALTER TABLE `cluster_roles` ADD `plan_mode` integer DEFAULT 0 NOT NULL;

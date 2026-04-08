@@ -1,0 +1,57 @@
+# agent-job/ — Agent Job Configuration
+
+This directory contains your agent job configuration files — system prompts, scheduling, and self-monitoring.
+
+## Files
+
+- **`SOUL.md`** — Agent personality, identity, and values. Included in every agent job system prompt.
+- **`SYSTEM.md`** — Runtime environment documentation injected into the agent's context.
+- **`HEARTBEAT.md`** — Prompt for the agent's periodic heartbeat cron job.
+- **`CRONS.json`** — Scheduled job definitions, loaded at server startup.
+
+## Editing CRONS.json
+
+`CRONS.json` is a JSON array of cron job objects. Each entry needs a `name`, `schedule` (cron expression), `type`, and `enabled` flag.
+
+There are three action types:
+
+**`agent`** — Launches a Docker agent container to execute an LLM task.
+
+```json
+{
+  "name": "heartbeat",
+  "schedule": "*/30 * * * *",
+  "type": "agent",
+  "job": "Read agent-job/HEARTBEAT.md and complete the tasks described there.",
+  "enabled": false
+}
+```
+
+Optional: add `"llm_provider"` and `"llm_model"` to override the default LLM for that job.
+
+**`command`** — Runs a shell command on the event handler (working directory: project root).
+
+```json
+{
+  "name": "ping",
+  "schedule": "*/1 * * * *",
+  "type": "command",
+  "command": "echo \"pong!\"",
+  "enabled": true
+}
+```
+
+**`webhook`** — Makes an HTTP request. `POST` (default) sends `vars` as the body; `GET` skips the body.
+
+```json
+{
+  "name": "health-check",
+  "schedule": "*/10 * * * *",
+  "type": "webhook",
+  "url": "https://example.com/health",
+  "method": "GET",
+  "enabled": false
+}
+```
+
+Optional webhook fields: `"method"` (default `POST`), `"headers"`, `"vars"`.

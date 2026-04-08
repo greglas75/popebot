@@ -1,0 +1,1 @@
+ALTER TABLE `code_workspaces` ADD `last_interactive_commit` text;

@@ -1,0 +1,16 @@
+ARG BASE_IMAGE=coding-agent-base
+FROM ${BASE_IMAGE}
+
+USER root
+
+RUN npm install -g @mariozechner/pi-coding-agent @playwright/cli@0.1.3
+
+# Pi config directory (extensions/models loaded from repo at runtime)
+RUN mkdir -p /home/coding-agent/.pi/agent \
+    && chown -R coding-agent:coding-agent /home/coding-agent/.pi
+
+USER coding-agent
+
+ENV AGENT=pi-coding-agent
+ENV PLAYWRIGHT_MCP_EXECUTABLE_PATH=/opt/pw-browsers/chromium-1217/chrome-linux/chrome
+ENV PLAYWRIGHT_MCP_OUTPUT_DIR=/home/coding-agent/workspace/.tmp

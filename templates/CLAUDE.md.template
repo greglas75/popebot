@@ -1,0 +1,35 @@
+# Project Structure
+
+This is a [thepopebot](https://github.com/stephengpope/thepopebot) project.
+
+## Directories
+
+- **`agent-job/`** — Agent job configuration: system prompts (`SOUL.md`, `SYSTEM.md`), heartbeat prompt, and cron schedules (`CRONS.json`).
+- **`agents/`** — Custom agent definitions. Each subdirectory defines an agent (see Managing Agents below).
+- **`event-handler/`** — Event handler configuration: chat system prompts, trigger definitions (`TRIGGERS.json`), cluster templates, and LiteLLM proxy config.
+- **`skills/library/`** — Skill plugins. Activate by symlinking into `skills/active/`.
+- **`data/`** — Runtime data (SQLite database, cluster state). Not checked into git.
+- **`logs/`** — Agent job logs, organized by job ID. Not checked into git.
+
+## Files
+
+- **`docker-compose.yml`** — Container definitions for the event handler and LiteLLM proxy. Managed — do not edit.
+- **`docker-compose.custom.yml`** — Your Docker Compose overrides. Merged with the main compose file.
+- **`.env`** — Environment variables (API keys, secrets). Never committed to git.
+
+## Managed Files
+
+Some files are auto-synced by `npx thepopebot init` and will be overwritten on upgrade. Do not edit these:
+
+- `.github/workflows/` — CI/CD workflows
+- `docker-compose.yml`
+- `.dockerignore`
+- `.gitignore`
+- `agent-job/CLAUDE.md`
+- `agents/CLAUDE.md`
+- `event-handler/CLAUDE.md`
+- `skills/CLAUDE.md`
+
+## Agents
+
+(No agents configured yet.)

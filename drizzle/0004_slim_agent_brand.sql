@@ -1,0 +1,1 @@
+ALTER TABLE `code_workspaces` ADD `feature_branch` text;

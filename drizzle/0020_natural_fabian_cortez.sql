@@ -1,0 +1,1 @@
+ALTER TABLE `code_workspaces` DROP COLUMN `coding_agent`;

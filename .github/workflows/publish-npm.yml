@@ -1,0 +1,299 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  # ─── Job 1: Publish to npm under a temporary "staging" tag ───
+  publish-staging:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      channel: ${{ steps.meta.outputs.channel }}
+      is-prerelease: ${{ steps.meta.outputs.is-prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: npm ci
+
+      - name: Detect version and release channel
+        id: meta
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          CHANNEL=$(node -p "
+            const v = require('./package.json').version;
+            const pre = v.split('-')[1];
+            pre ? pre.replace(/[^a-zA-Z].*/g, '') || 'pre' : 'latest'
+          ")
+          IS_PRE=$(echo "$VERSION" | grep -q '-' && echo "true" || echo "false")
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
+          echo "is-prerelease=$IS_PRE" >> $GITHUB_OUTPUT
+          echo "Publishing $VERSION → staging (final tag: $CHANNEL, prerelease: $IS_PRE)"
+
+      - name: Publish to staging tag
+        run: npm publish --tag staging
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ─── Job 2a: Build & push coding-agent base image ───
+  build-base-image:
+    needs: [publish-staging]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and push coding-agent-base
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/coding-agent
+          file: docker/coding-agent/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: stephengpope/thepopebot:coding-agent-base-${{ needs.publish-staging.outputs.version }}
+          cache-from: type=gha,scope=coding-agent-base
+          cache-to: type=gha,mode=max,scope=coding-agent-base
+
+  # ─── Job 2b: Build & push coding agent images ───
+  build-coding-agents:
+    needs: [publish-staging, build-base-image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - image: coding-agent-claude-code
+            dockerfile: docker/coding-agent/Dockerfile.claude-code
+          - image: coding-agent-pi-coding-agent
+            dockerfile: docker/coding-agent/Dockerfile.pi-coding-agent
+          - image: coding-agent-gemini-cli
+            dockerfile: docker/coding-agent/Dockerfile.gemini-cli
+          - image: coding-agent-codex-cli
+            dockerfile: docker/coding-agent/Dockerfile.codex-cli
+          - image: coding-agent-opencode
+            dockerfile: docker/coding-agent/Dockerfile.opencode
+          - image: coding-agent-kimi-cli
+            dockerfile: docker/coding-agent/Dockerfile.kimi-cli
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and push ${{ matrix.image }}
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/coding-agent
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: stephengpope/thepopebot:${{ matrix.image }}-${{ needs.publish-staging.outputs.version }}
+          build-args: |
+            BASE_IMAGE=stephengpope/thepopebot:coding-agent-base-${{ needs.publish-staging.outputs.version }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  # ─── Job 2c: Build & push event-handler image (parallel with coding agents) ───
+  build-event-handler:
+    needs: [publish-staging]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and push event-handler
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/event-handler/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: stephengpope/thepopebot:event-handler-${{ needs.publish-staging.outputs.version }}
+          cache-from: type=gha,scope=event-handler
+          cache-to: type=gha,mode=max,scope=event-handler
+
+  # ─── Job 3: Promote npm staging → real channel tag ───
+  promote:
+    needs: [publish-staging, build-coding-agents, build-event-handler]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Promote staging to ${{ needs.publish-staging.outputs.channel }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          VERSION="${{ needs.publish-staging.outputs.version }}"
+          CHANNEL="${{ needs.publish-staging.outputs.channel }}"
+          echo "Promoting thepopebot@$VERSION → $CHANNEL"
+          npm dist-tag add "thepopebot@$VERSION" "$CHANNEL"
+          npm dist-tag rm thepopebot staging
+
+  # ─── Job 4: Create GitHub Release with LLM changelog ───
+  release:
+    needs: [publish-staging, promote]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate changelog with LLM
+        env:
+          GH_TOKEN: ${{ github.token }}
+          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
+          MODEL: ${{ vars.ANTHROPIC_SMALL_FAST_MODEL || vars.ANTHROPIC_MODEL }}
+        run: |
+          CURRENT_TAG=${GITHUB_REF#refs/tags/}
+
+          # For stable releases, compare against previous stable (not beta).
+          # For beta releases, compare against the most recent previous release of any kind.
+          if echo "$CURRENT_TAG" | grep -q '-'; then
+            PREV_TAG=$(gh release list --limit 100 --json tagName \
+              --jq '[.[].tagName | select(. != "'"${CURRENT_TAG}"'")] | first // empty')
+          else
+            PREV_TAG=$(gh release list --limit 100 --json tagName \
+              --jq '[.[].tagName | select(. != "'"${CURRENT_TAG}"'" and (contains("-") | not))] | first // empty')
+          fi
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "Initial release" > /tmp/release_notes.md
+            exit 0
+          fi
+
+          # Get diff via GitHub API (no local history needed, works with shallow clone)
+          gh api "repos/${{ github.repository }}/compare/${PREV_TAG}...${CURRENT_TAG}" \
+            --jq '[.files[] | "--- a/\(.filename)\n+++ b/\(.filename)\n\(.patch // "")"] | join("\n\n")' \
+            > /tmp/diff.txt 2>/dev/null
+
+          if [ ! -s /tmp/diff.txt ]; then
+            echo "Bug fixes and improvements." > /tmp/release_notes.md
+            exit 0
+          fi
+
+          # Build prompt
+          PROMPT_HEADER="Analyze the following code diff between two releases of an npm package (thepopebot — a framework for creating autonomous AI agents). Write a changelog that:
+
+          1. Describes each meaningful change in terms of **user-facing outcomes** — how the project is actually better
+          2. Includes brief technical context for each change
+          3. Uses bullet points, grouped by theme if there are many changes
+          4. Is concise and scannable
+          5. Ignores trivial changes (whitespace, formatting, version bumps)
+
+          Diff:"
+
+          # Use jq --rawfile to safely embed diff in JSON (handles all special chars)
+          jq -n \
+            --arg header "$PROMPT_HEADER" \
+            --rawfile diff /tmp/diff.txt \
+            --arg model "$MODEL" \
+            '{
+              model: $model,
+              max_tokens: 2048,
+              messages: [{role: "user", content: ($header + "\n" + $diff)}]
+            }' > /tmp/request.json
+
+          RESPONSE=$(curl -s "${BASE_URL}/v1/messages" \
+            -H "x-api-key: $API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d @/tmp/request.json)
+
+          NOTES=$(echo "$RESPONSE" | jq -r '.content[0].text // empty')
+
+          if [ -z "$NOTES" ]; then
+            # Fallback: use commit subjects via GitHub compare API
+            gh api "repos/${{ github.repository }}/compare/${PREV_TAG}...${CURRENT_TAG}" \
+              --jq '[.commits[].commit.message | split("\n")[0] | select(test("^[0-9]+\\.[0-9]+") | not)] | map("- " + .) | join("\n")' \
+              > /tmp/release_notes.md 2>/dev/null
+            # If that also fails, use a generic message
+            [ -s /tmp/release_notes.md ] || echo "Bug fixes and improvements." > /tmp/release_notes.md
+          else
+            echo "$NOTES" > /tmp/release_notes.md
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          PRERELEASE_FLAG=""
+          if [ "${{ needs.publish-staging.outputs.is-prerelease }}" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          gh release create "$TAG" $PRERELEASE_FLAG --title "$TAG" --notes-file /tmp/release_notes.md
+
+  # ─── Job 5: Clean up if Docker builds fail ───
+  cleanup-on-failure:
+    needs: [publish-staging, build-base-image, build-coding-agents, build-event-handler]
+    if: always() && needs.publish-staging.result == 'success' && (needs.build-base-image.result != 'success' || needs.build-coding-agents.result != 'success' || needs.build-event-handler.result != 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Remove staging tag and unpublish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          VERSION="${{ needs.publish-staging.outputs.version }}"
+          echo "Docker builds failed — cleaning up thepopebot@$VERSION"
+
+          # Remove the staging dist-tag so it doesn't linger
+          npm dist-tag rm thepopebot staging || true
+
+          # Unpublish the version (allowed within 72h of publish)
+          npm unpublish "thepopebot@$VERSION" || true

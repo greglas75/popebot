@@ -1,0 +1,14 @@
+#!/bin/bash
+# Start Pi in tmux, serve via ttyd (interactive runtime only)
+# CONTINUE_SESSION: 1 = continue most recent session (-c)
+
+PI_ARGS="pi"
+if [ -n "$LLM_MODEL" ]; then
+    PI_ARGS="$PI_ARGS --model $LLM_MODEL"
+fi
+if [ "$CONTINUE_SESSION" = "1" ]; then
+    PI_ARGS="$PI_ARGS --session-dir /home/coding-agent/.pi-ttyd-sessions/${PORT:-7681} -c"
+fi
+
+tmux -u new-session -d -s pi -e PORT="${PORT:-7681}" $PI_ARGS
+exec ttyd --writable -p "${PORT:-7681}" tmux attach -t pi

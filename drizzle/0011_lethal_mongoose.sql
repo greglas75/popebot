@@ -1,0 +1,1 @@
+ALTER TABLE `clusters` ADD `enabled` integer DEFAULT 0 NOT NULL;
