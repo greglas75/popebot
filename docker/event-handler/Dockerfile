@@ -50,5 +50,9 @@ RUN echo '{"private":true}' > package.json
 COPY --from=nextjs /app/.next ./.next
 COPY web/server.js web/next.config.mjs web/instrumentation.js web/middleware.js web/postcss.config.mjs ./
 
+RUN groupadd -r thepopebot && useradd -r -g thepopebot -G root -u 1001 thepopebot && \
+    chown -R 1001:0 /app
+
 EXPOSE 80
+USER thepopebot
 CMD ["pm2-runtime", "--kill-timeout", "120000", "server.js"]
