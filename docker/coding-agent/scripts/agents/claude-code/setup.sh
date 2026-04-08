@@ -3,6 +3,10 @@
 
 source /scripts/common/build-system-prompt.sh
 
+# Auto-update Claude Code to latest version
+echo "[setup] Updating Claude Code..."
+npm i -g @anthropic-ai/claude-code@latest 2>/dev/null || echo "[setup] Claude Code update skipped (non-root)"
+
 WORKSPACE_DIR=$(pwd)
 
 mkdir -p ~/.claude

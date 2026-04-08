@@ -5,6 +5,9 @@ USER root
 
 RUN npm install -g @anthropic-ai/claude-code
 
+# Allow coding-agent to update global npm packages (for auto-update in setup.sh)
+RUN chown -R coding-agent:coding-agent /usr/lib/node_modules /usr/bin
+
 USER coding-agent
 
 ENV AGENT=claude-code
