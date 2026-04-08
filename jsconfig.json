@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "strict": false,
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "thepopebot/*": ["./lib/*", "./api/*", "./config/*"]
+    }
+  },
+  "include": ["lib/**/*.js", "api/**/*.js", "config/**/*.js", "bin/**/*.js"],
+  "exclude": ["node_modules", ".next", "lib/**/*.jsx", "lib/chat/components/**/*.js"]
+}
