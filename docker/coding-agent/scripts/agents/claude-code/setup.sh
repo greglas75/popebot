@@ -63,6 +63,12 @@ ENDJSON
 # Register Playwright MCP server for browser automation
 claude mcp add --transport stdio playwright -- npx -y @playwright/mcp@0.0.70 --headless --browser chromium --output-dir /home/coding-agent/workspace/.tmp
 
+# Install zuvo plugin for quality gates, adversarial review, and skill ecosystem
+if command -v claude &>/dev/null; then
+  echo "[setup] Installing zuvo plugin..."
+  curl -fsSL https://raw.githubusercontent.com/greglas75/zuvo/main/scripts/quick-install.sh | bash - 2>/dev/null || echo "[setup] zuvo install skipped (non-fatal)"
+fi
+
 # Activate agent-job-secrets skill when token is available (agent chat mode only)
 if [ -n "$AGENT_JOB_TOKEN" ]; then
   ln -sfn ../library/agent-job-secrets skills/active/agent-job-secrets 2>/dev/null || true
