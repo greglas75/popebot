@@ -159,7 +159,7 @@ async function handleGetAgentSecret(request) {
       return Response.json({ value: newToken.access_token });
     } catch (err) {
       console.error(`[secrets] OAuth refresh failed for "${key}":`, err.message);
-      return Response.json({ error: `OAuth refresh failed: ${err.message}` }, { status: 502 });
+      return Response.json({ error: 'OAuth refresh failed' }, { status: 502 });
     } finally {
       release();
     }
