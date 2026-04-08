@@ -11,18 +11,35 @@ Technical reference for AI assistants modifying this fork of thepopebot.
 
 This does: commit → push → SSH to VPS → rebuild all images → restart.
 
-### Manual deploy
+### Manual deploy (step by step)
 
 ```bash
-# On VPS:
-ssh vps
+# 1. Commit and push (from Mac):
+cd ~/DEV/thepopebot
+git add -A && git commit -m "description"
+git push myfork clean-main:main
+
+# 2. Rebuild on VPS (from Mac via SSH):
+ssh -i ~/.ssh/id_ed25519 root@217.217.252.206 /root/rebuild.sh
+```
+
+Or SSH into VPS directly:
+```bash
+ssh vps                    # alias — may not work from Claude Code shell
+ssh -i ~/.ssh/id_ed25519 root@217.217.252.206   # direct — always works
 /root/rebuild.sh
 ```
 
-### VPS access
+### Git remotes
 
+| Remote | URL | Purpose |
+|--------|-----|---------|
+| `origin` | github.com/stephengpope/thepopebot | Upstream (read-only, no push access) |
+| `myfork` | github.com/greglas75/popebot | Our fork (push here) |
+
+**Working branch**: `clean-main`. Push to `myfork/main` for deploy:
 ```bash
-ssh vps                    # alias for ssh -i ~/.ssh/id_ed25519 root@217.217.252.206
+git push myfork clean-main:main
 ```
 
 ## Fork docs
@@ -41,12 +58,24 @@ ssh vps                    # alias for ssh -i ~/.ssh/id_ed25519 root@217.217.252
 
 ## Deployment Model
 
-The npm package (`api/`, `lib/`, `config/`, `bin/`) is published to npm. In production:
+The npm package (`api/`, `lib/`, `config/`, `bin/`) is published to npm by upstream. In production:
 
-- **Event handler**: Docker image bakes the npm package, Next.js app source (`web/`), and `.next` build output. User project directories (`agent-job/`, `event-handler/`, `skills/`, `.env`, `data/`, etc.) are individually volume-mounted into `/app`. The full project is also mounted at `/project` for git access. Runs `server.js` via PM2 behind Traefik reverse proxy.
+- **Event handler**: Docker image installs `thepopebot` from npm, then **overlays the fork's `lib/`** on top (see Fork Build below). Next.js app source (`web/`) and `.next` build output are baked in. User project directories (`agent-job/`, `event-handler/`, `skills/`, `.env`, `data/`, etc.) are individually volume-mounted into `/app`. The full project is also mounted at `/project` for git access. Runs `server.js` via PM2 behind Traefik reverse proxy.
 - **`lib/paths.js`**: Exports `PROJECT_ROOT` (`process.cwd()`). This is how the installed npm package finds the volume-mounted user project files.
 - **Agent-job containers**: Ephemeral Docker containers clone `agent-job/*` branches separately — use named volumes for workspace. See `docker/CLAUDE.md`.
 - **Local install**: Gives users CLI tools (`init`, `setup`, `upgrade`) and configuration scaffolding.
+
+## Fork Build — How lib/ Changes Get Into Docker
+
+The upstream `thepopebot` npm package contains `lib/`. Our fork modifies `lib/` but does NOT publish to npm. The event-handler Dockerfile handles this:
+
+1. `npm install thepopebot@{version}` — installs upstream package + its deps
+2. `npm install {fork deps}` — installs extra deps from fork's `package.json` (e.g. `p-limit`)  
+3. `COPY lib/ ./node_modules/thepopebot/lib/` — overlays fork's `lib/` on top of npm package
+
+**This means**: any change to `lib/` requires a Docker rebuild (`/root/rebuild.sh`) to take effect. The overlay happens in `docker/event-handler/Dockerfile`.
+
+**Important**: all deps must be installed in ONE `npm install` call. Two sequential calls cause npm to prune transitive deps (like `next`). If you add a new dependency to `package.json`, the single-install approach handles it automatically.
 
 ## Package vs. Templates — Where Code Goes
 
