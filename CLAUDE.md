@@ -17,7 +17,7 @@ This does: commit → push → SSH to VPS → rebuild all images → restart.
 # 1. Commit and push (from Mac):
 cd ~/DEV/thepopebot
 git add -A && git commit -m "description"
-git push myfork clean-main:main
+git push origin clean-main
 
 # 2. Rebuild on VPS (from Mac via SSH):
 ssh -i ~/.ssh/id_ed25519 root@217.217.252.206 /root/rebuild.sh
@@ -30,17 +30,38 @@ ssh -i ~/.ssh/id_ed25519 root@217.217.252.206   # direct — always works
 /root/rebuild.sh
 ```
 
-### Git remotes
+### Git setup
 
-| Remote | URL | Purpose |
-|--------|-----|---------|
-| `origin` | github.com/stephengpope/thepopebot | Upstream (read-only, no push access) |
-| `myfork` | github.com/greglas75/popebot | Our fork (push here) |
+Single remote: `origin` → `github.com/greglas75/popebot` (our fork). No upstream remote configured — upstream code (stephengpope/thepopebot) is consumed via npm, not git.
 
-**Working branch**: `clean-main`. Push to `myfork/main` for deploy:
+**Working branch**: `clean-main`. Push:
 ```bash
-git push myfork clean-main:main
+git push origin clean-main
 ```
+
+**Do NOT** add stephengpope/thepopebot as a git remote — the histories are unrelated (1030 upstream commits vs our fork) and cannot be merged.
+
+### Performance audit status
+
+Full 12-dimension performance audit completed (2026-04-08). Report: `audits/performance-audit-2026-04-08.md`. Spec: `docs/specs/2026-04-08-perf-phase3-spec.md`.
+
+All findings fixed and verified through 3 rounds of adversarial review (internal + 6 cross-provider models). Upstream bugs reported: stephengpope/thepopebot#240.
+
+Findings discovered using [zuvo:performance-audit](https://zuvo.dev/en/skills/performance-audit/) and [zuvo:review](https://zuvo.dev/en/skills/review/).
+
+### Reporting bugs to upstream
+
+When you find bugs or security issues in the upstream thepopebot package, report them on GitHub:
+
+```bash
+gh issue create --repo stephengpope/thepopebot \
+  --title "Brief description of the issue" \
+  --body "Description with file paths, line numbers, and fix suggestions.
+
+> Findings discovered using [zuvo skills](https://zuvo.dev/en/skills/performance-audit/)."
+```
+
+Existing report: stephengpope/thepopebot#240 (15 performance + security findings).
 
 ## Fork docs
 
