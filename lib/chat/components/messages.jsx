@@ -11,6 +11,7 @@ export function Messages({ messages, status, onRetry, onEdit }) {
   const [atBottom, setAtBottom] = useState(true);
 
   const isStreaming = status === 'streaming';
+  const lastMessage = messages.at(-1);
 
   const scrollToBottom = () => {
     virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' });
@@ -28,13 +29,13 @@ export function Messages({ messages, status, onRetry, onEdit }) {
         {messages.length > 0 && (
           <Virtuoso
             ref={virtuosoRef}
-            data={messages}
+            data={isStreaming ? messages.slice(0, -1) : messages}
             computeItemKey={(index, message) => message?.id ?? `msg-${index}`}
             itemContent={(index, message) => (
               <div className="mx-auto max-w-4xl px-4 md:px-6 py-2 md:py-3">
                 <PreviewMessage
                   message={message}
-                  isLoading={isStreaming && index === messages.length - 1}
+                  isLoading={false}
                   onRetry={onRetry}
                   onEdit={onEdit}
                 />
@@ -47,6 +48,14 @@ export function Messages({ messages, status, onRetry, onEdit }) {
             components={{
               Footer: () => (
                 <div className="mx-auto max-w-4xl px-4 md:px-6 py-2 md:py-3">
+                  {isStreaming && lastMessage && (
+                    <PreviewMessage
+                      message={lastMessage}
+                      isLoading={true}
+                      onRetry={onRetry}
+                      onEdit={onEdit}
+                    />
+                  )}
                   {status === 'submitted' && <ThinkingMessage />}
                   <div className="min-h-[24px] shrink-0" />
                 </div>

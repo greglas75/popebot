@@ -98,10 +98,8 @@ export function ChatInput({ input, setInput, onSubmit, status, stop, files, setF
     const accepted = Array.from(fileList).filter(isAcceptedType);
     if (accepted.length === 0) return;
 
-    // Trim to available slots BEFORE decoding to avoid wasting CPU/memory
-    const slotsAvailable = MAX_FILES - (files?.length || 0);
-    if (slotsAvailable <= 0) return;
-    const toProcess = accepted.slice(0, slotsAvailable);
+    // Pre-trim to approximate available slots (actual cap enforced in setFiles updater)
+    const toProcess = accepted.slice(0, MAX_FILES);
 
     const processed = await Promise.all(toProcess.map((file) =>
       (async () => {
@@ -132,9 +130,12 @@ export function ChatInput({ input, setInput, onSubmit, status, stop, files, setF
 
     const valid = processed.filter(Boolean);
     if (valid.length > 0) {
-      setFiles((current) => [...current, ...valid]);
+      setFiles((current) => {
+        const remaining = MAX_FILES - current.length;
+        return remaining > 0 ? [...current, ...valid.slice(0, remaining)] : current;
+      });
     }
-  }, [files, setFiles]);
+  }, [setFiles]);
 
   const removeFile = (index) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
