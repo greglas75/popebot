@@ -95,10 +95,15 @@ export function ChatInput({ input, setInput, onSubmit, status, stop, files, setF
   }, [modeDropdownOpen]);
 
   const handleFiles = useCallback(async (fileList) => {
-    const newFiles = Array.from(fileList).filter(isAcceptedType);
-    if (newFiles.length === 0) return;
+    const accepted = Array.from(fileList).filter(isAcceptedType);
+    if (accepted.length === 0) return;
 
-    const processed = await Promise.all(newFiles.map((file) =>
+    // Trim to available slots BEFORE decoding to avoid wasting CPU/memory
+    const slotsAvailable = MAX_FILES - (files?.length || 0);
+    if (slotsAvailable <= 0) return;
+    const toProcess = accepted.slice(0, slotsAvailable);
+
+    const processed = await Promise.all(toProcess.map((file) =>
       (async () => {
         const previewUrl = await new Promise((resolve, reject) => {
           const reader = new FileReader();
@@ -119,15 +124,17 @@ export function ChatInput({ input, setInput, onSubmit, status, stop, files, setF
         }
 
         return { file, previewUrl, width, height };
-      })().catch(() => null)
+      })().catch((err) => {
+        console.warn(`[chat-input] Failed to read file "${file.name}":`, err?.message || err);
+        return null;
+      })
     ));
 
     const valid = processed.filter(Boolean);
-    setFiles((current) => {
-      const remaining = MAX_FILES - current.length;
-      return remaining > 0 ? [...current, ...valid.slice(0, remaining)] : current;
-    });
-  }, [setFiles]);
+    if (valid.length > 0) {
+      setFiles((current) => [...current, ...valid]);
+    }
+  }, [files, setFiles]);
 
   const removeFile = (index) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
