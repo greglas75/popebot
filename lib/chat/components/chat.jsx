@@ -8,6 +8,7 @@ import { ChatInput } from './chat-input.js';
 import { ChatHeader } from './chat-header.js';
 import { Greeting } from './greeting.js';
 import { RepoBranchPicker, WorkspaceBar } from './code-mode-toggle.js';
+import { getAvailableAgents } from '../actions.js';
 import dynamic from 'next/dynamic';
 const DiffViewer = dynamic(() => import('./diff-viewer.js').then(m => ({ default: m.DiffViewer })), { ssr: false });
 import { cn } from '../utils.js';
@@ -41,6 +42,30 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
       localStorage.setItem(`codeModeType:${chatId}`, codeModeType);
     }
   }, [chatId, codeModeType]);
+  // Agent backend selector
+  const [availableAgents, setAvailableAgents] = useState([]);
+  const [codingAgent, setCodingAgent] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('thepopebot-coding-agent') || '';
+    }
+    return '';
+  });
+
+  useEffect(() => {
+    getAvailableAgents().then(({ defaultAgent, agents }) => {
+      setAvailableAgents(agents);
+      if (!codingAgent && defaultAgent) {
+        setCodingAgent(defaultAgent);
+      }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && codingAgent) {
+      localStorage.setItem('thepopebot-coding-agent', codingAgent);
+    }
+  }, [codingAgent]);
+
   const [defaultRepo, setDefaultRepo] = useState(null);
   const [repo, setRepo] = useState(workspace?.repo || '');
   const [branch, setBranch] = useState(workspace?.branch || '');
@@ -76,8 +101,8 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
     }
   }, [workspaceState?.containerName]);
 
-  const codeModeRef = useRef({ codeMode, codeModeType, repo, branch, workspaceId: workspaceState?.id });
-  codeModeRef.current = { codeMode, codeModeType, repo, branch, workspaceId: workspaceState?.id };
+  const codeModeRef = useRef({ codeMode, codeModeType, repo, branch, workspaceId: workspaceState?.id, codingAgent });
+  codeModeRef.current = { codeMode, codeModeType, repo, branch, workspaceId: workspaceState?.id, codingAgent };
 
   const transport = useMemo(
     () =>
@@ -90,6 +115,7 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
           repo: codeModeRef.current.repo,
           branch: codeModeRef.current.branch,
           workspaceId: codeModeRef.current.workspaceId,
+          codingAgent: codeModeRef.current.codingAgent,
         }),
       }),
     [chatId]
@@ -235,6 +261,9 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
     isInteractiveActive,
     onInteractiveToggle: handleInteractiveToggle,
     togglingMode,
+    codingAgent,
+    availableAgents,
+    onAgentChange: setCodingAgent,
   };
 
   const handleBranchChange = useCallback((newBranch) => {
@@ -349,6 +378,17 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
                     Code
                   </span>
                 </button>
+                {availableAgents.length > 1 && (
+                  <select
+                    value={codingAgent}
+                    onChange={(e) => setCodingAgent(e.target.value)}
+                    className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-foreground transition-colors"
+                  >
+                    {availableAgents.map((a) => (
+                      <option key={a.value} value={a.value}>{a.label}</option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
           </div>

@@ -321,6 +321,19 @@ export function ChatInput({ input, setInput, onSubmit, status, stop, files, setF
                 </div>
               )}
 
+              {/* Agent backend selector */}
+              {codeModeSettings?.availableAgents?.length > 1 && (
+                <select
+                  value={codeModeSettings.codingAgent || ''}
+                  onChange={(e) => codeModeSettings.onAgentChange?.(e.target.value)}
+                  className="rounded-md border-0 bg-muted-foreground/10 px-2 py-1 text-xs text-muted-foreground hover:text-foreground focus:outline-none transition-colors cursor-pointer"
+                >
+                  {codeModeSettings.availableAgents.map((a) => (
+                    <option key={a.value} value={a.value}>{a.label}</option>
+                  ))}
+                </select>
+              )}
+
               {/* Interactive toggle */}
               {codeModeSettings && !codeModeSettings.isInteractiveActive && (
                 <button
