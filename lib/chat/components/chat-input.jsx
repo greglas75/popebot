@@ -347,11 +347,10 @@ export function ChatInput({ input, setInput, onSubmit, status, stop, files, setF
                 const models = agent?.models || [];
                 return models.length > 0 ? (
                   <select
-                    value={codeModeSettings?.codingModel || ''}
+                    value={codeModeSettings?.codingModel || models[0]?.value || ''}
                     onChange={(e) => codeModeSettings?.onModelChange?.(e.target.value)}
                     className="rounded-md border-0 bg-muted-foreground/10 px-2 py-1 text-xs text-muted-foreground hover:text-foreground focus:outline-none transition-colors cursor-pointer"
                   >
-                    <option value="">Default</option>
                     {models.map((m) => (
                       <option key={m.value} value={m.value}>{m.label}</option>
                     ))}

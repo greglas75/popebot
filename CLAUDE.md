@@ -104,6 +104,14 @@ The upstream `thepopebot` npm package contains `lib/`. Our fork modifies `lib/` 
 
 **This means**: any change to `lib/` requires a Docker rebuild (`/root/rebuild.sh`) to take effect. The overlay happens in `docker/event-handler/Dockerfile`.
 
+**Critical — JSX must be compiled before deploy:**
+Next.js loads `.js` files, NOT `.jsx`. After editing any `.jsx` file in `lib/chat/components/`, `lib/auth/components/`, `lib/code/`, or `lib/cluster/components/`, you MUST run:
+```bash
+npm run build    # compiles .jsx → .js via esbuild
+```
+Then commit both the `.jsx` AND `.js` files (use `git add -f` — `.js` files are gitignored).
+Without this step, your UI changes will NOT appear even after a Docker rebuild.
+
 **Important**: all deps must be installed in ONE `npm install` call. Two sequential calls cause npm to prune transitive deps (like `next`). If you add a new dependency to `package.json`, the single-install approach handles it automatically.
 
 ## Package vs. Templates — Where Code Goes
