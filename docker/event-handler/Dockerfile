@@ -8,9 +8,11 @@ RUN apt-get update && \
 WORKDIR /app
 COPY package.json package-lock.json* ./
 # Rename package to avoid npm treating "thepopebot" as a self-install
+COPY package.json /tmp/fork-pkg.json
 RUN TPB_VERSION=$(node -p "require('./package.json').version") && \
     echo "{\"private\":true}" > package.json && \
-    npm install --no-save "thepopebot@${TPB_VERSION}" tailwindcss @tailwindcss/postcss
+    npm install --no-save "thepopebot@${TPB_VERSION}" tailwindcss @tailwindcss/postcss && \
+    node -e "const d=require('/tmp/fork-pkg.json').dependencies||{};delete d.thepopebot;const p=Object.entries(d).map(([k,v])=>k+'@'+v);if(p.length){const{execSync}=require('child_process');execSync('npm install --no-save '+p.join(' '),{stdio:'inherit'})}"
 # Overlay fork's lib/ on top of npm package (fork changes not published to npm)
 COPY lib/ ./node_modules/thepopebot/lib/
 
