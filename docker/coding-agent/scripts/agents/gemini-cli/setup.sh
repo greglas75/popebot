@@ -37,7 +37,31 @@ EOF
 chmod +x /home/coding-agent/.gemini-ttyd-sessions-hook.sh
 
 # ── Configure settings.json: auth + session tracking hook ──
-if [ -n "$GOOGLE_API_KEY" ]; then
+if [ -n "$GEMINI_OAUTH_CREDS" ]; then
+    # OAuth mode — credentials already written by auth.sh
+    cat > ~/.gemini/settings.json <<SETTINGS
+{
+  "security": {
+    "auth": {
+      "selectedType": "google-cloud-oauth"
+    }
+  },
+  "hooks": {
+    "AfterAgent": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/coding-agent/.gemini-ttyd-sessions-hook.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  }
+}
+SETTINGS
+elif [ -n "$GOOGLE_API_KEY" ]; then
     cat > ~/.gemini/settings.json <<SETTINGS
 {
   "security": {
