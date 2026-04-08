@@ -11,6 +11,8 @@ COPY package.json package-lock.json* ./
 RUN TPB_VERSION=$(node -p "require('./package.json').version") && \
     echo "{\"private\":true}" > package.json && \
     npm install --no-save "thepopebot@${TPB_VERSION}" tailwindcss @tailwindcss/postcss
+# Overlay fork's lib/ on top of npm package (fork changes not published to npm)
+COPY lib/ ./node_modules/thepopebot/lib/
 
 # ── Stage 2: Next.js build ───────────────────────────────────────
 FROM node:22-bookworm-slim AS nextjs
