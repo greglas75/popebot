@@ -52,3 +52,4 @@ lib/code/*.js
 !lib/code/terminal-sessions.js
 !lib/code/port-forwards.js
 screenshots/
+.zuvo/
