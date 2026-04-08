@@ -98,29 +98,34 @@ export function ChatInput({ input, setInput, onSubmit, status, stop, files, setF
     const newFiles = Array.from(fileList).filter(isAcceptedType);
     if (newFiles.length === 0) return;
 
-    const processed = await Promise.all(newFiles.map(async (file) => {
-      const previewUrl = await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.readAsDataURL(file);
-      });
+    const processed = await Promise.all(newFiles.map((file) =>
+      (async () => {
+        const previewUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(reader.error);
+          reader.onabort = () => reject(new Error('File read aborted'));
+          reader.readAsDataURL(file);
+        });
 
-      let width, height;
-      if (file.type.startsWith('image/')) {
-        try {
-          const bitmap = await createImageBitmap(file);
-          width = bitmap.width;
-          height = bitmap.height;
-          bitmap.close();
-        } catch { /* non-image or corrupt */ }
-      }
+        let width, height;
+        if (file.type.startsWith('image/')) {
+          try {
+            const bitmap = await createImageBitmap(file);
+            width = bitmap.width;
+            height = bitmap.height;
+            bitmap.close();
+          } catch { /* non-image or corrupt */ }
+        }
 
-      return { file, previewUrl, width, height };
-    }));
+        return { file, previewUrl, width, height };
+      })().catch(() => null)
+    ));
 
+    const valid = processed.filter(Boolean);
     setFiles((current) => {
       const remaining = MAX_FILES - current.length;
-      return remaining > 0 ? [...current, ...processed.slice(0, remaining)] : current;
+      return remaining > 0 ? [...current, ...valid.slice(0, remaining)] : current;
     });
   }, [setFiles]);
 

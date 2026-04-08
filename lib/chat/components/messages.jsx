@@ -8,7 +8,6 @@ import { ArrowDown } from 'lucide-react';
 
 export function Messages({ messages, status, onRetry, onEdit }) {
   const virtuosoRef = useRef(null);
-  const endRef = useRef(null);
   const [atBottom, setAtBottom] = useState(true);
 
   const isStreaming = status === 'streaming';
@@ -31,6 +30,7 @@ export function Messages({ messages, status, onRetry, onEdit }) {
           <Virtuoso
             ref={virtuosoRef}
             data={isStreaming ? messages.slice(0, -1) : messages}
+            computeItemKey={(index, message) => message.id}
             itemContent={(index, message) => (
               <div className="mx-auto max-w-4xl px-4 md:px-6 py-2 md:py-3">
                 <PreviewMessage
@@ -57,7 +57,7 @@ export function Messages({ messages, status, onRetry, onEdit }) {
                     />
                   )}
                   {status === 'submitted' && <ThinkingMessage />}
-                  <div className="min-h-[24px] shrink-0" ref={endRef} />
+                  <div className="min-h-[24px] shrink-0" />
                 </div>
               ),
             }}
