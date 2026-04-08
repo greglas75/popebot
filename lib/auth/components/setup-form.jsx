@@ -16,6 +16,7 @@ export function SetupForm() {
   const [loading, setLoading] = useState(false);
   const [created, setCreated] = useState(false);
   const [signingUp, setSigningUp] = useState(false);
+  const [optIn, setOptIn] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -71,10 +72,14 @@ export function SetupForm() {
               <Label>Email</Label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} />
+              I agree to receive product updates via email
+            </label>
             <div className="flex gap-2">
               <button
                 onClick={handleSignup}
-                disabled={signingUp}
+                disabled={signingUp || !optIn}
                 className="px-3 py-1.5 text-sm font-medium rounded-md bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 transition-colors"
               >
                 {signingUp ? 'Signing up...' : 'Sign Up'}

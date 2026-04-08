@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execSync, execFileSync } from 'child_process';
+import { execSync, execFileSync, spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -521,12 +521,11 @@ function diff(filePath) {
     return;
   }
 
-  try {
-    // Use git diff for nice colored output, fall back to plain diff
-    execSync(`git diff --no-index -- "${dest}" "${src}"`, { stdio: 'inherit' });
+  // Use git diff for nice colored output (exits 1 when files differ)
+  const result = spawnSync('git', ['diff', '--no-index', '--', dest, src], { stdio: 'inherit' });
+  if (result.status === 0) {
     console.log('\nFiles are identical.\n');
-  } catch (e) {
-    // git diff exits with 1 when files differ (output already printed)
+  } else {
     console.log(`\n  To reset: thepopebot reset ${filePath}\n`);
   }
 }

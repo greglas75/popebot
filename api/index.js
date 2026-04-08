@@ -10,6 +10,7 @@ import { verifyApiKey } from '../lib/db/api-keys.js';
 import { getConfig } from '../lib/config.js';
 import { parseOAuthState, exchangeCodeForToken } from '../lib/oauth/helper.js';
 import { setAgentJobSecret } from '../lib/db/config.js';
+import { rateLimit, rateLimitResponse } from '../lib/rate-limit.js';
 
 // ── Per-key lock for OAuth token refresh ────────────────────────────
 const _refreshLocks = new Map();
@@ -60,19 +61,23 @@ function safeCompare(a, b) {
  * @returns {Response|null} - Error response or null if authorized
  */
 function checkAuth(routePath, request) {
-  if (PUBLIC_ROUTES.includes(routePath)) return null;
+  if (PUBLIC_ROUTES.includes(routePath)) return { error: null, record: null };
 
   const apiKey = request.headers.get('x-api-key');
   if (!apiKey) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    return { error: Response.json({ error: 'Unauthorized' }, { status: 401 }), record: null };
   }
+
+  // Rate limit before verification — blocks brute-force on invalid keys too
+  const rl = rateLimitResponse(rateLimit(`api:${apiKey.slice(-8)}`, 30, 60_000));
+  if (rl) return { error: rl, record: null };
 
   const record = verifyApiKey(apiKey);
   if (!record) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    return { error: Response.json({ error: 'Unauthorized' }, { status: 401 }), record: null };
   }
 
-  return null;
+  return { error: null, record };
 }
 
 /**
@@ -372,7 +377,7 @@ async function POST(request) {
   const routePath = url.pathname.replace(/^\/api/, '');
 
   // Auth check
-  const authError = checkAuth(routePath, request);
+  const { error: authError, record: authRecord } = checkAuth(routePath, request);
   if (authError) return authError;
 
   // Fire triggers (non-blocking)
@@ -391,13 +396,23 @@ async function POST(request) {
   // Cluster role webhooks
   const clusterMatch = routePath.match(/^\/cluster\/([a-f0-9-]+)\/role\/([a-f0-9-]+)\/webhook$/);
   if (clusterMatch) {
+    if (authRecord?.type === 'agent_job_api_key') {
+      return Response.json({ error: 'Forbidden' }, { status: 403 });
+    }
     const { handleClusterWebhook } = await import('../lib/cluster/runtime.js');
     return handleClusterWebhook(clusterMatch[1], clusterMatch[2], request);
   }
 
   // Route to handler
   switch (routePath) {
-    case '/create-agent-job':     return handleCreateAgentJob(request);
+    case '/create-agent-job': {
+      if (authRecord?.type === 'agent_job_api_key') {
+        return Response.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      const rl = rateLimitResponse(rateLimit(`agent-job:${request.headers.get('x-api-key')?.slice(-8)}`, 5, 60_000));
+      if (rl) return rl;
+      return handleCreateAgentJob(request);
+    }
     case '/telegram/webhook':   return handleTelegramWebhook(request);
     case '/telegram/register':  return handleTelegramRegister(request);
     case '/github/webhook':     return handleGithubWebhook(request);
@@ -410,7 +425,7 @@ async function GET(request) {
   const routePath = url.pathname.replace(/^\/api/, '');
 
   // Auth check
-  const authError = checkAuth(routePath, request);
+  const { error: authError } = checkAuth(routePath, request);
   if (authError) return authError;
 
   switch (routePath) {
