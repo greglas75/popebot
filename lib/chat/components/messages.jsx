@@ -30,7 +30,7 @@ export function Messages({ messages, status, onRetry, onEdit }) {
           <Virtuoso
             ref={virtuosoRef}
             data={isStreaming ? messages.slice(0, -1) : messages}
-            computeItemKey={(index, message) => message.id}
+            computeItemKey={(index, message) => message?.id ?? `msg-${index}`}
             itemContent={(index, message) => (
               <div className="mx-auto max-w-4xl px-4 md:px-6 py-2 md:py-3">
                 <PreviewMessage
