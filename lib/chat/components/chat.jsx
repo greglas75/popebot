@@ -153,6 +153,7 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
       mediaType: f.file.type || 'text/plain',
       url: f.previewUrl,
       filename: f.file.name,
+      ...(f.width && { width: f.width, height: f.height }),
     }));
     await sendMessage({ text: text || undefined, files: fileParts });
 

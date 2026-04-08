@@ -94,20 +94,33 @@ export function ChatInput({ input, setInput, onSubmit, status, stop, files, setF
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [modeDropdownOpen]);
 
-  const handleFiles = useCallback((fileList) => {
+  const handleFiles = useCallback(async (fileList) => {
     const newFiles = Array.from(fileList).filter(isAcceptedType);
     if (newFiles.length === 0) return;
 
-    // Read files outside state updater to avoid React strict mode double-invocation
-    newFiles.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setFiles((current) => {
-          if (current.length >= MAX_FILES) return current;
-          return [...current, { file, previewUrl: reader.result }];
-        });
-      };
-      reader.readAsDataURL(file);
+    const processed = await Promise.all(newFiles.map(async (file) => {
+      const previewUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+      });
+
+      let width, height;
+      if (file.type.startsWith('image/')) {
+        try {
+          const bitmap = await createImageBitmap(file);
+          width = bitmap.width;
+          height = bitmap.height;
+          bitmap.close();
+        } catch { /* non-image or corrupt */ }
+      }
+
+      return { file, previewUrl, width, height };
+    }));
+
+    setFiles((current) => {
+      const remaining = MAX_FILES - current.length;
+      return remaining > 0 ? [...current, ...processed.slice(0, remaining)] : current;
     });
   }, [setFiles]);
 

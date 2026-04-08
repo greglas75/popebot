@@ -2,9 +2,9 @@
 
 > **spec_id:** 2026-04-08-perf-phase3-1430
 > **topic:** Deferred performance optimizations from audit (render_md async, message virtualization, image CLS)
-> **status:** Draft
+> **status:** Approved
 > **created_at:** 2026-04-08T14:30:00Z
-> **approved_at:** null
+> **approved_at:** 2026-04-08T15:10:00Z
 > **approval_mode:** interactive
 > **author:** zuvo:brainstorm
 
@@ -27,7 +27,7 @@ If we do nothing: server-side event loop stalls continue on every chat message; 
 
 Rationale: `react-virtuoso` has built-in `followOutput` for chat auto-scroll, handles variable-height items natively (no `estimateSize`/`measureElement` callbacks), and is the only library where chat is a first-class use case. TanStack Virtual has documented issues with dynamic-height + scroll-to-bottom (issue #1093). react-window requires fixed heights.
 
-**Known trade-off:** Ctrl+F browser search will not find text in off-screen (unmounted) messages. This is an inherent limitation of DOM virtualization. Mitigation: aggressive overscan (20 items above/below viewport).
+**Known trade-off:** Ctrl+F browser search will not find text in off-screen (unmounted) messages. This is an inherent limitation of DOM virtualization. Mitigation: `increaseViewportBy={{ top: 2000, bottom: 2000 }}` renders ~10-25 extra messages above/below viewport (pixel-based, not item-count). Note: `react-virtuoso`'s `overscan` prop is in pixels, not items.
 
 ### DD2: Streaming message placement -- outside virtualizer
 
@@ -48,6 +48,10 @@ Rationale: mtime check is ~0.1ms (one syscall) vs ~1-5ms for a full read+parse. 
 **Chosen:** Use `createImageBitmap(file)` in `chat-input.jsx` when the user attaches an image. Store `{ width, height }` on the file part. Render with `style={{ aspectRatio }}`.
 **Over:** `next/image` (not applicable for data URLs), `onLoad` handler (still causes first-paint CLS).
 
+### DD5: LangGraph async prompt compatibility -- confirmed
+
+**Confirmed:** `createReactAgent`'s `prompt` option wraps the function in `RunnableLambda.from(prompt)` (see `@langchain/langgraph/dist/prebuilt/react_agent_executor.js` line 28). `RunnableLambda._invoke` calls `await this.func(input, ...)` (base.js line 1257), so async functions are fully supported. The `prompt:` callback CAN be `async` — LangGraph already awaits it. No structural change needed beyond adding `async` and `await`.
+
 ## Solution Overview
 
 Three independent changes that can be implemented and tested separately:
@@ -55,10 +59,11 @@ Three independent changes that can be implemented and tested separately:
 ```
                      Server                          Client
                   ============                    ============
-  render_md()     async + cache     Messages.jsx   react-virtuoso
+  render_md()     async + cache     messages.jsx   react-virtuoso
   render-md.js    fs.promises       messages.jsx   Virtuoso component
   agent.js        await in prompt   message.jsx    lazy img + aspect-ratio
   index.js        await call        chat-input.jsx createImageBitmap
+                                    chat.jsx       width/height in fileParts
 ```
 
 ## Detailed Design
@@ -67,13 +72,14 @@ Three independent changes that can be implemented and tested separately:
 
 #### Files modified:
 - `lib/utils/render-md.js` — full rewrite of `render_md`, `loadSkillDescriptions`, `resolveVariables`
-- `lib/ai/agent.js` — add `async` to prompt functions, add `await`
+- `lib/ai/agent.js` — add `async` to prompt functions, add `await`, import+call `clearRenderCache` in `resetAgentChats`
 - `lib/ai/index.js` — add `await` to line 413
 
 #### Data Model:
 Module-level cache in `render-md.js`:
 ```js
 const cache = new Map(); // key: absolutePath, value: { mtimeMs, content }
+let skillDescCache = null; // cached skill descriptions string
 ```
 
 #### API Surface:
@@ -85,24 +91,26 @@ function render_md(filePath, chain = []) → string
 async function render_md(filePath, chain = []) → Promise<string>
 
 // New: cache invalidation (called by resetAgentChats)
-function clearRenderCache() → void
+export function clearRenderCache() → void  // clears cache Map + skillDescCache
 ```
 
 #### Algorithm:
 1. `resolve(filePath)` → absolute path
 2. Check circular includes via `chain` array (unchanged)
-3. `stat(path)` → get `mtimeMs`
+3. Try `fs.promises.stat(path)` → get `mtimeMs`. If stat throws ENOENT, return `''` (same as current `existsSync` guard behavior). This replaces both `fs.existsSync` calls (line 84 for main file, line 93 for included files).
 4. If cache has entry AND `mtimeMs` matches → use cached content
-5. Else → `readFile(path, 'utf8')` → store in cache with `mtimeMs`
-6. Scan content for `{{file.md}}` includes using `matchAll(INCLUDE_PATTERN)`
-7. For each include: `await render_md(includePath, [...chain, path])` (sequential, for circular detection)
-8. After all includes resolved → `await resolveVariables(result)` (also async now, for `loadSkillDescriptions`)
-9. Return final string
+5. Else → `await fs.promises.readFile(path, 'utf8')` → store in cache with `mtimeMs`
+6. Scan content for `{{file.md}}` includes using `matchAll(INCLUDE_PATTERN)`. Cannot use `content.replace()` with async callback — must collect all matches first.
+7. For each match (sequential loop, for circular detection): `await render_md(includePath, [...chain, path])` → build replacement map
+8. Apply all replacements to content string
+9. `await resolveVariables(result)` (also async now, calls async `loadSkillDescriptions`)
+10. Return final string
 
 #### `loadSkillDescriptions()` async conversion:
-- `readdirSync` → `fs.promises.readdir(dir, { withFileTypes: true })`
-- `readFileSync` per skill → `fs.promises.readFile`
-- Cache the skill descriptions result in a module-level variable; invalidate when `clearRenderCache()` is called
+- `fs.existsSync(activeDir)` → `try { await fs.promises.access(activeDir) } catch { return '' }`
+- `fs.readdirSync` → `await fs.promises.readdir(dir, { withFileTypes: true })`
+- `fs.existsSync(skillMdPath)` + `fs.readFileSync` per skill → `try { await fs.promises.readFile(...) } catch { continue }`
+- Cache result in `skillDescCache`; cleared by `clearRenderCache()`
 
 #### Caller changes:
 ```js
@@ -116,8 +124,16 @@ prompt: async (state) => [new SystemMessage(await render_md(...)), ...state.mess
 const systemPrompt = await render_md(summaryMdPath);
 ```
 
-#### Integration with `resetAgentChats()`:
-In `lib/ai/agent.js`, the `resetAgentChats()` function already nulls out agent singletons. Add a call to `clearRenderCache()` so that updated template files take effect immediately when the user changes LLM settings (which triggers `resetAgentChats`).
+#### `resetAgentChats()` integration (`lib/ai/agent.js`):
+```js
+import { clearRenderCache } from '../utils/render-md.js';
+
+export function resetAgentChats() {
+  globalThis.__popebotAgentChat = null;
+  globalThis.__popebotCodeChat = null;
+  clearRenderCache();
+}
+```
 
 ### B. Message list virtualization with `react-virtuoso`
 
@@ -127,59 +143,86 @@ In `lib/ai/agent.js`, the `resetAgentChats()` function already nulls out agent s
 
 #### Component architecture:
 ```jsx
-<div className="relative flex-1">
-  <div className="absolute inset-0">
-    {messages.length === 0 && <Greeting />}
+import { Virtuoso } from 'react-virtuoso';
 
-    {messages.length > 0 && (
-      <Virtuoso
-        ref={virtuosoRef}
-        data={isStreaming ? messages.slice(0, -1) : messages}
-        itemContent={(index, message) => (
-          <div className="mx-auto max-w-4xl px-4 md:px-6 py-2 md:py-3">
-            <PreviewMessage
-              message={message}
-              isLoading={false}
-              onRetry={onRetry}
-              onEdit={onEdit}
-            />
-          </div>
-        )}
-        followOutput="smooth"
-        overscan={20}
-        components={{
-          Footer: () => (
-            <div className="mx-auto max-w-4xl px-4 md:px-6 py-2 md:py-3">
-              {isStreaming && lastMessage && (
+export function Messages({ messages, status, onRetry, onEdit }) {
+  const virtuosoRef = useRef(null);
+  const endRef = useRef(null);
+  const [atBottom, setAtBottom] = useState(true);
+
+  const isStreaming = status === 'streaming';
+  const lastMessage = messages.at(-1);
+
+  const scrollToBottom = () => {
+    virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' });
+  };
+
+  return (
+    <div className="relative flex-1">
+      <div className="absolute inset-0">
+        {messages.length === 0 && <Greeting />}
+
+        {messages.length > 0 && (
+          <Virtuoso
+            ref={virtuosoRef}
+            data={isStreaming ? messages.slice(0, -1) : messages}
+            itemContent={(index, message) => (
+              <div className="mx-auto max-w-4xl px-4 md:px-6 py-2 md:py-3">
                 <PreviewMessage
-                  message={lastMessage}
-                  isLoading={true}
+                  message={message}
+                  isLoading={false}
                   onRetry={onRetry}
                   onEdit={onEdit}
                 />
-              )}
-              {status === 'submitted' && <ThinkingMessage />}
-              <div className="min-h-[24px] shrink-0" ref={endRef} />
-            </div>
-          ),
-        }}
-      />
-    )}
+              </div>
+            )}
+            followOutput="smooth"
+            increaseViewportBy={{ top: 2000, bottom: 2000 }}
+            atBottomStateChange={setAtBottom}
+            components={{
+              Footer: () => (
+                <div className="mx-auto max-w-4xl px-4 md:px-6 py-2 md:py-3">
+                  {isStreaming && lastMessage && (
+                    <PreviewMessage
+                      message={lastMessage}
+                      isLoading={true}
+                      onRetry={onRetry}
+                      onEdit={onEdit}
+                    />
+                  )}
+                  {status === 'submitted' && <ThinkingMessage />}
+                  <div className="min-h-[24px] shrink-0" ref={endRef} />
+                </div>
+              ),
+            }}
+          />
+        )}
 
-    {!atBottom && <ScrollToBottomButton onClick={scrollToBottom} />}
-  </div>
-</div>
+        {!atBottom && (
+          <button
+            className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-border bg-background p-2 shadow-lg hover:bg-muted"
+            onClick={scrollToBottom}
+            aria-label="Scroll to bottom"
+          >
+            <ArrowDown className="size-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 ```
 
 #### Scroll behavior:
 - `followOutput="smooth"` — auto-scrolls when new content arrives AND user is at bottom
-- `atBottomStateChange` callback → replaces manual scroll listener for `isAtBottom` state
-- `scrollToBottom` button → calls `virtuosoRef.current.scrollToIndex({ index: 'LAST', behavior: 'smooth' })`
+- `atBottomStateChange={setAtBottom}` — replaces manual scroll listener for `isAtBottom` state
+- Scroll-to-bottom button uses existing inline `<button>` markup with `ArrowDown` icon (no new component)
+- `scrollToBottom` calls `virtuosoRef.current.scrollToIndex({ index: 'LAST', behavior: 'smooth' })`
 - Remove manual `useEffect` auto-scroll and `handleScroll` listener (Virtuoso handles both)
 
 #### Streaming message pattern:
-- When `status === 'streaming'`: pass `messages.slice(0, -1)` to Virtuoso data, render last message in `Footer`
-- When streaming ends: full `messages` array goes to Virtuoso data, Footer is empty
+- When `status === 'streaming'`: pass `messages.slice(0, -1)` to Virtuoso data, render `lastMessage` (`messages.at(-1)`) in `Footer`
+- When streaming ends: full `messages` array goes to Virtuoso data, Footer has no message content
 - `ThinkingMessage` always renders in Footer (outside virtualizer)
 
 #### ToolCall expand/collapse:
@@ -188,31 +231,67 @@ In `lib/ai/agent.js`, the `resetAgentChats()` function already nulls out agent s
 ### C. Image CLS prevention
 
 #### Files modified:
-- `lib/chat/components/chat-input.jsx` — extract dimensions at upload
-- `lib/chat/components/chat.jsx` — pass dimensions to file parts
+- `lib/chat/components/chat-input.jsx` — extract dimensions at upload time
+- `lib/chat/components/chat.jsx` — pass `width`/`height` through to file parts
 - `lib/chat/components/message.jsx` — add `loading="lazy"` + `aspect-ratio` style
 
-#### Dimension extraction (chat-input.jsx):
-When files are processed in the FileReader `onload`:
+#### Dimension extraction (`chat-input.jsx`):
+
+The current `handleFiles` function (lines 97-112) uses `FileReader.onload` (callback-based). Since `createImageBitmap` is Promise-based, the file processing loop must be restructured:
+
 ```js
-if (file.type.startsWith('image/')) {
-  const bitmap = await createImageBitmap(file);
-  const dims = { width: bitmap.width, height: bitmap.height };
-  bitmap.close();
-  // store dims alongside previewUrl
+// Current pattern (simplified):
+// reader.onload = () => { setFiles(prev => [...prev, { file, previewUrl: reader.result }]); };
+// reader.readAsDataURL(file);
+
+// New pattern — wrap FileReader in a Promise, chain with createImageBitmap:
+async function processFile(file) {
+  const previewUrl = await new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
+
+  let width, height;
+  if (file.type.startsWith('image/')) {
+    try {
+      const bitmap = await createImageBitmap(file);
+      width = bitmap.width;
+      height = bitmap.height;
+      bitmap.close();
+    } catch { /* non-image or corrupt — leave undefined */ }
+  }
+
+  return { file, previewUrl, width, height };
 }
+
+// In handleFiles:
+const processed = await Promise.all(acceptedFiles.map(processFile));
+setFiles(prev => [...prev, ...processed]);
 ```
 
-#### File part shape (chat.jsx):
+#### File part shape (`chat.jsx` `handleSend`, line ~151-156):
 ```js
 // Before:
-{ type: 'file', mediaType, url: previewUrl, filename }
+const fileParts = currentFiles.map((f) => ({
+  type: 'file',
+  mediaType: f.file.type || 'text/plain',
+  url: f.previewUrl,
+  filename: f.file.name,
+}));
 
-// After:
-{ type: 'file', mediaType, url: previewUrl, filename, width, height }
+// After — pass through width/height if present:
+const fileParts = currentFiles.map((f) => ({
+  type: 'file',
+  mediaType: f.file.type || 'text/plain',
+  url: f.previewUrl,
+  filename: f.file.name,
+  ...(f.width && { width: f.width, height: f.height }),
+}));
 ```
 
-#### Render (message.jsx):
+#### Render (`message.jsx`):
+Both `<img>` tags (user messages line ~401, AI messages line ~440) change to:
 ```jsx
 <img
   src={part.url}
@@ -229,24 +308,26 @@ if (file.type.startsWith('image/')) {
 |-----------|----------|
 | Streaming message height changes every ~50ms | Rendered outside virtualizer in Footer |
 | ToolCall expand/collapse changes height | Virtuoso auto-detects via browser layout |
-| Ctrl+F search misses off-screen messages | Known trade-off; overscan=20 mitigates partially |
+| Ctrl+F search misses off-screen messages | Known trade-off; `increaseViewportBy: 2000px` renders ~10-25 extra messages |
 | ThinkingMessage placement | Always in Footer, outside virtualizer |
-| `onEdit` on off-screen message | Message is in Virtuoso data — user clicks edit on visible message, so always in viewport |
+| `onEdit` on off-screen message | User clicks edit on visible message, so always in viewport |
 | `{{datetime}}` freshness after caching | Variable substitution applied AFTER cache lookup; never cached |
-| User edits template .md file | mtime check detects change on next call; `resetAgentChats` also flushes cache |
+| User edits template .md file | mtime check detects change on next call; `resetAgentChats` also calls `clearRenderCache()` |
 | Concurrent render_md calls on same file | Safe — reads are non-destructive; cache Map is synchronous access |
 | Mobile touch scrolling with Virtuoso | Virtuoso uses native scroll container; `touch-pan-y` preserved |
 | Images without stored dimensions (old messages) | Fallback: no `aspect-ratio` set, same as current behavior |
+| Missing files in render_md | `stat()` throws ENOENT → return `''` (replaces `existsSync` guard) |
+| `handleFiles` becomes async | Wrapped in `Promise.all` with async `processFile` helper |
 
 ## Acceptance Criteria
 
-1. `render_md()` returns a Promise; all callers use `await`; no `readFileSync`/`readdirSync` in the function
+1. `render_md()` returns a Promise; all callers use `await`; no `readFileSync`/`readdirSync`/`existsSync` in the function
 2. Chat messages render in a `react-virtuoso` Virtuoso component
 3. Streaming messages render below the virtualizer with no scroll jitter
 4. Auto-scroll to bottom works during streaming (when user is at bottom)
 5. "Scroll to bottom" button appears when user scrolls up; clicking it scrolls to bottom
 6. Editing template .md files takes effect on next chat message (mtime cache invalidation)
-7. `clearRenderCache()` is called by `resetAgentChats()`
+7. `clearRenderCache()` is exported from `lib/utils/render-md.js` and called by `resetAgentChats()` in `lib/ai/agent.js`
 8. Image attachments have `loading="lazy"` and `aspect-ratio` style when dimensions are available
 9. `npm run build` passes with no errors
 10. Existing `React.memo` on `PreviewMessage` continues to work with Virtuoso

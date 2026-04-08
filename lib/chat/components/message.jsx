@@ -401,7 +401,9 @@ export const PreviewMessage = memo(function PreviewMessage({ message, isLoading,
                           key={i}
                           src={part.url}
                           alt="attachment"
+                          loading={isLoading ? 'eager' : 'lazy'}
                           className="max-h-64 max-w-full rounded-lg object-contain"
+                          style={part.width ? { aspectRatio: `${part.width}/${part.height}` } : undefined}
                         />
                       ))}
                     </div>
@@ -439,7 +441,7 @@ export const PreviewMessage = memo(function PreviewMessage({ message, isLoading,
                           if (part.mediaType?.startsWith('image/')) {
                             return (
                               <div key={i} className="mb-2">
-                                <img src={part.url} alt="attachment" className="max-h-64 max-w-full rounded-lg object-contain" />
+                                <img src={part.url} alt="attachment" loading={isLoading ? 'eager' : 'lazy'} className="max-h-64 max-w-full rounded-lg object-contain" style={part.width ? { aspectRatio: `${part.width}/${part.height}` } : undefined} />
                               </div>
                             );
                           }
