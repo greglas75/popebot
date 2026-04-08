@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Streamdown } from 'streamdown';
 import { cn } from '../utils.js';
 import { SpinnerIcon, FileTextIcon, CopyIcon, CheckIcon, RefreshIcon, SquarePenIcon, WrenchIcon, XIcon, ChevronDownIcon } from './icons.js';
@@ -247,7 +247,7 @@ function ToolCall({ part, className }) {
   );
 }
 
-export function PreviewMessage({ message, isLoading, onRetry, onEdit }) {
+export const PreviewMessage = memo(function PreviewMessage({ message, isLoading, onRetry, onEdit }) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
   const [copied, setCopied] = useState(false);
@@ -516,7 +516,7 @@ export function PreviewMessage({ message, isLoading, onRetry, onEdit }) {
       </div>
     </div>
   );
-}
+});
 
 export function ThinkingMessage() {
   return (

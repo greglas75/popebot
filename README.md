@@ -1,17 +1,42 @@
-# ThePopeBot
+# PopeBot (TGM fork)
 
-Build autonomous AI agents that work for you 24/7, individually or in teams.
+Autonomous AI agent platform for teams. Fork of [thepopebot](https://github.com/stephengpope/thepopebot) with security hardening, zuvo integration, and auto-update.
 
-### What You Get
+## What's different in this fork
 
-- **Runs 24/7** — set up tasks and your agent handles them around the clock, no babysitting
-- **Does real work** — writes code, opens pull requests, completes multi-step tasks end to end
-- **Agent clusters** — build teams of agents that coordinate and work together on bigger jobs
-- **Full visibility** — every action is a commit you can review, approve, or undo
+- Default user role `user` (not `admin`)
+- LRU token rotation race condition fixed
+- Webhook payload validation (prompt injection protection)
+- Docker resource limits (2GB RAM, PidsLimit 512)
+- Claude Code timeout (3600s)
+- `umask 077` + error handling in container scripts
+- Auto-update Claude Code at every container start
+- Auto-install [zuvo](https://github.com/greglas75/zuvo-marketplace) plugin (48 skills, adversarial review, quality gates)
 
-<a href="https://www.skool.com/ai-architects"><img src="docs/hero.png" width="100" alt="ThePopeBot" /></a>
+## Deployment
 
-[Get priority support HERE](https://www.skool.com/ai-architects)
+| Component | URL / Location |
+|-----------|---------------|
+| Web UI | https://coding.tgmedit.com |
+| VPS | Contabo Singapore, 96GB RAM, Ubuntu 24.04 |
+| Source (fork) | github.com/greglas75/popebot |
+| Instance config | github.com/greglas75/popebot-instance |
+
+## Deploy workflow
+
+```bash
+# Edit code locally in ~/DEV/thepopebot, then:
+./deploy.sh "description of changes"
+```
+
+This does: commit → push → pull on VPS → rebuild all images → restart services.
+
+## Manual rebuild on VPS
+
+```bash
+ssh vps
+/root/rebuild.sh
+```
 
 ---
 

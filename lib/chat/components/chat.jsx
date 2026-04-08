@@ -8,7 +8,8 @@ import { ChatInput } from './chat-input.js';
 import { ChatHeader } from './chat-header.js';
 import { Greeting } from './greeting.js';
 import { RepoBranchPicker, WorkspaceBar } from './code-mode-toggle.js';
-import { DiffViewer } from './diff-viewer.js';
+import dynamic from 'next/dynamic';
+const DiffViewer = dynamic(() => import('./diff-viewer.js').then(m => ({ default: m.DiffViewer })), { ssr: false });
 import { cn } from '../utils.js';
 
 const fetchRepositories = () =>

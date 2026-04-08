@@ -1,6 +1,41 @@
-# thepopebot — Package Source Reference
+# PopeBot (TGM Fork)
 
-Technical reference for AI assistants modifying the thepopebot NPM package source code.
+Technical reference for AI assistants modifying this fork of thepopebot.
+
+## Deploy
+
+```bash
+# From Mac — one command does everything:
+./deploy.sh "description of changes"
+```
+
+This does: commit → push → SSH to VPS → rebuild all images → restart.
+
+### Manual deploy
+
+```bash
+# On VPS:
+ssh vps
+/root/rebuild.sh
+```
+
+### VPS access
+
+```bash
+ssh vps                    # alias for ssh -i ~/.ssh/id_ed25519 root@217.217.252.206
+```
+
+## Fork docs
+
+- [FORK_DEPLOYMENT.md](docs/FORK_DEPLOYMENT.md) — architecture, images, SSL, troubleshooting
+- [FORK_SECURITY.md](docs/FORK_SECURITY.md) — 10 security fixes with details
+- [ZUVO_INTEGRATION.md](docs/ZUVO_INTEGRATION.md) — auto-install, 48 skills, adversarial review
+- [TEAM_SETUP.md](docs/TEAM_SETUP.md) — users, OAuth tokens, cost management
+- [ROADMAP.md](docs/ROADMAP.md) — what's done, what's next
+
+---
+
+## Upstream Reference
 
 **Architecture**: Event Handler (Next.js) creates `agent-job/*` branches → launches Docker agent container locally (Claude Code, Pi, etc.) → task executed → PR created → auto-merge → notification. Agent jobs log to `logs/{JOB_ID}/`.
 

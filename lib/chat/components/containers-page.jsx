@@ -107,7 +107,10 @@ function ContainerLogsDialog({ containerName, onClose }) {
     es.addEventListener('log', (e) => {
       try {
         const data = JSON.parse(e.data);
-        setLogs((prev) => [...prev, data]);
+        setLogs((prev) => {
+          const next = [...prev, data];
+          return next.length > 500 ? next.slice(-500) : next;
+        });
       } catch {}
     });
 

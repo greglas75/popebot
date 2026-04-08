@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTheme } from 'next-themes';
 import { html as diff2html, parse as diff2htmlParse } from 'diff2html';
-import 'diff2html/bundles/css/diff2html.min.css';
+
 
 /**
  * Diff viewer overlay — two-panel layout with file list on left, unified diff on right.
