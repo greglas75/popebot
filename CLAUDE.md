@@ -58,8 +58,16 @@ gh issue create --repo stephengpope/thepopebot \
   --title "Brief description of the issue" \
   --body "Description with file paths, line numbers, and fix suggestions.
 
-> Findings discovered using [zuvo skills](https://zuvo.dev/en/skills/performance-audit/)."
+> Findings discovered using [zuvo:<skill-name>](https://zuvo.dev/en/skills/<skill-name>/)."
 ```
+
+Use the actual zuvo skill that found the issue in the link, e.g.:
+- `zuvo:performance-audit` → `https://zuvo.dev/en/skills/performance-audit/`
+- `zuvo:review` → `https://zuvo.dev/en/skills/review/`
+- `zuvo:security-audit` → `https://zuvo.dev/en/skills/security-audit/`
+- `zuvo:pentest` → `https://zuvo.dev/en/skills/pentest/`
+- `zuvo:db-audit` → `https://zuvo.dev/en/skills/db-audit/`
+- etc. Pattern: `https://zuvo.dev/en/skills/<skill-name>/`
 
 Existing report: stephengpope/thepopebot#240 (15 performance + security findings).
 
