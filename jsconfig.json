@@ -10,6 +10,18 @@
       "thepopebot/*": ["./lib/*", "./api/*", "./config/*"]
     }
   },
-  "include": ["lib/**/*.js", "api/**/*.js", "config/**/*.js", "bin/**/*.js"],
-  "exclude": ["node_modules", ".next", "lib/**/*.jsx", "lib/chat/components/**/*.js"]
+  "include": [
+    "lib/**/*.js",
+    "api/**/*.js",
+    "config/**/*.js",
+    "bin/**/*.js",
+    "web/**/*.js"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "web/.next",
+    "lib/**/*.jsx",
+    "lib/chat/components/**/*.js"
+  ]
 }
