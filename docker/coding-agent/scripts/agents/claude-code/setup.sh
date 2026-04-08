@@ -70,7 +70,13 @@ claude mcp add --transport stdio playwright -- npx -y @playwright/mcp@0.0.70 --h
 # Install zuvo plugin for quality gates, adversarial review, and skill ecosystem
 if command -v claude &>/dev/null; then
   echo "[setup] Installing zuvo plugin..."
-  curl -fsSL https://raw.githubusercontent.com/greglas75/zuvo/main/scripts/quick-install.sh | bash - 2>/dev/null || echo "[setup] zuvo install skipped (non-fatal)"
+  # 1. Register marketplace + install plugin (creates cache dir)
+  claude plugin marketplace add greglas75/zuvo-marketplace 2>/dev/null || true
+  claude plugin marketplace update zuvo-marketplace 2>/dev/null || true
+  claude plugin update zuvo@zuvo-marketplace 2>/dev/null || \
+    claude plugin install zuvo 2>/dev/null || true
+  # 2. Now run quick-install to sync files into cache + install to Codex/Cursor
+  curl -fsSL https://raw.githubusercontent.com/greglas75/zuvo/main/scripts/quick-install.sh | bash 2>/dev/null || echo "[setup] zuvo install skipped (non-fatal)"
 fi
 
 # Activate agent-job-secrets skill when token is available (agent chat mode only)
