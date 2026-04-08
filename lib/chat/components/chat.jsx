@@ -409,11 +409,10 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
                   const models = agent?.models || [];
                   return models.length > 0 ? (
                     <select
-                      value={codingModel || ''}
+                      value={codingModel || models[0]?.value || ''}
                       onChange={(e) => setCodingModel(e.target.value)}
                       className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-foreground transition-colors"
                     >
-                      <option value="">Default model</option>
                       {models.map((m) => (
                         <option key={m.value} value={m.value}>{m.label}</option>
                       ))}
