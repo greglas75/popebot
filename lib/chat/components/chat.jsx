@@ -42,11 +42,17 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
       localStorage.setItem(`codeModeType:${chatId}`, codeModeType);
     }
   }, [chatId, codeModeType]);
-  // Agent backend selector
+  // Agent backend + model selector
   const [availableAgents, setAvailableAgents] = useState([]);
   const [codingAgent, setCodingAgent] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('thepopebot-coding-agent') || '';
+    }
+    return '';
+  });
+  const [codingModel, setCodingModel] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('thepopebot-coding-model') || '';
     }
     return '';
   });
@@ -65,6 +71,12 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
       localStorage.setItem('thepopebot-coding-agent', codingAgent);
     }
   }, [codingAgent]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('thepopebot-coding-model', codingModel);
+    }
+  }, [codingModel]);
 
   const [defaultRepo, setDefaultRepo] = useState(null);
   const [repo, setRepo] = useState(workspace?.repo || '');
@@ -101,8 +113,8 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
     }
   }, [workspaceState?.containerName]);
 
-  const codeModeRef = useRef({ codeMode, codeModeType, repo, branch, workspaceId: workspaceState?.id, codingAgent });
-  codeModeRef.current = { codeMode, codeModeType, repo, branch, workspaceId: workspaceState?.id, codingAgent };
+  const codeModeRef = useRef({ codeMode, codeModeType, repo, branch, workspaceId: workspaceState?.id, codingAgent, codingModel });
+  codeModeRef.current = { codeMode, codeModeType, repo, branch, workspaceId: workspaceState?.id, codingAgent, codingModel };
 
   const transport = useMemo(
     () =>
@@ -116,6 +128,7 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
           branch: codeModeRef.current.branch,
           workspaceId: codeModeRef.current.workspaceId,
           codingAgent: codeModeRef.current.codingAgent,
+          codingModel: codeModeRef.current.codingModel || undefined,
         }),
       }),
     [chatId]
@@ -262,8 +275,10 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
     onInteractiveToggle: handleInteractiveToggle,
     togglingMode,
     codingAgent,
+    codingModel,
     availableAgents,
     onAgentChange: setCodingAgent,
+    onModelChange: setCodingModel,
   };
 
   const handleBranchChange = useCallback((newBranch) => {
@@ -378,7 +393,7 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
                     Code
                   </span>
                 </button>
-                {availableAgents.length > 1 && (
+                {availableAgents.length > 0 && (
                   <select
                     value={codingAgent}
                     onChange={(e) => setCodingAgent(e.target.value)}
@@ -389,6 +404,22 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
                     ))}
                   </select>
                 )}
+                {availableAgents.length > 0 && (() => {
+                  const agent = availableAgents.find(a => a.value === codingAgent);
+                  const models = agent?.models || [];
+                  return models.length > 0 ? (
+                    <select
+                      value={codingModel || ''}
+                      onChange={(e) => setCodingModel(e.target.value)}
+                      className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-foreground transition-colors"
+                    >
+                      <option value="">Default model</option>
+                      {models.map((m) => (
+                        <option key={m.value} value={m.value}>{m.label}</option>
+                      ))}
+                    </select>
+                  ) : null;
+                })()}
               </div>
             </div>
           </div>
