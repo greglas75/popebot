@@ -47,7 +47,7 @@ Full 12-dimension performance audit completed (2026-04-08). Report: `audits/perf
 
 All findings fixed and verified through 3 rounds of adversarial review (internal + 6 cross-provider models). Upstream bugs reported: stephengpope/thepopebot#240.
 
-Findings discovered using [zuvo:performance-audit](https://zuvo.dev/en/skills/performance-audit/) and [zuvo:review](https://zuvo.dev/en/skills/review/).
+Findings discovered using [zuvo:performance-audit](https://zuvo.dev/en/skills/performance-audit/) and [zuvo:review](https://zuvo.dev/en/skills/review/) with [CodeSift](https://codesift.app/) for codebase analysis.
 
 ### Reporting bugs to upstream
 
@@ -58,7 +58,7 @@ gh issue create --repo stephengpope/thepopebot \
   --title "Brief description of the issue" \
   --body "Description with file paths, line numbers, and fix suggestions.
 
-> Findings discovered using [zuvo:<skill-name>](https://zuvo.dev/en/skills/<skill-name>/)."
+> Findings discovered using [zuvo:<skill-name>](https://zuvo.dev/en/skills/<skill-name>/) with [CodeSift](https://codesift.app/) for codebase analysis."
 ```
 
 Use the actual zuvo skill that found the issue in the link, e.g.:
