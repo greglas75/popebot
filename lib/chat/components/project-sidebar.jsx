@@ -92,6 +92,7 @@ function ProjectFolder({ project, threads, expanded, onToggle, activeChatId, onN
 
 export function ProjectSidebar({ user }) {
   const [projects, setProjects] = useState([]);
+  const [looseChats, setLooseChats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedProjects, setExpandedProjects] = useState(new Set());
   const { activeChatId, navigateToChat } = useChatNav();
@@ -105,9 +106,15 @@ export function ProjectSidebar({ user }) {
         if (!r.ok) throw new Error('Failed to fetch projects');
         const data = await r.json();
         if (!cancelled) {
-          setProjects(data);
-          // Expand all projects by default
-          setExpandedProjects(new Set(data.map((p) => p.id)));
+          // Support both old (array) and new ({projects, looseChats}) formats
+          const projectList = Array.isArray(data) ? data : (data.projects || []);
+          const loose = Array.isArray(data) ? [] : (data.looseChats || []);
+          setProjects(projectList);
+          setLooseChats(loose);
+          // Expand all projects + "Recent" by default
+          const ids = new Set(projectList.map((p) => p.id));
+          if (loose.length > 0) ids.add('__recent__');
+          setExpandedProjects(ids);
         }
       } catch (err) {
         console.warn('[project-sidebar] Failed to load projects:', err.message);
@@ -164,7 +171,18 @@ export function ProjectSidebar({ user }) {
         />
       ))}
 
-      {projects.length === 0 && (
+      {looseChats.length > 0 && (
+        <ProjectFolder
+          project={{ id: '__recent__', name: 'Recent' }}
+          threads={looseChats}
+          expanded={expandedProjects.has('__recent__')}
+          onToggle={() => toggleProject('__recent__')}
+          activeChatId={activeChatId}
+          onNavigate={handleNavigate}
+        />
+      )}
+
+      {projects.length === 0 && looseChats.length === 0 && (
         <SidebarGroup>
           <SidebarGroupContent>
             <p className="px-4 py-2 text-sm text-muted-foreground">
