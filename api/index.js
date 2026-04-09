@@ -438,4 +438,11 @@ async function GET(request) {
   }
 }
 
-export { GET, POST };
+/** @internal Reset module-scope caches between tests. */
+function _resetForTest() {
+  telegramBotToken = null;
+  _fireTriggers = null;
+  _refreshLocks.clear();
+}
+
+export { GET, POST, _resetForTest };

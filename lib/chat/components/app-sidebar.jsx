@@ -39,7 +39,7 @@ export function AppSidebar({ user }) {
           setUnreadCount(notifications || 0);
           setPrCount(pullRequests || 0);
         })
-        .catch(() => {});
+        .catch((err) => console.warn('[sidebar] Failed to fetch counts:', err.message));
     }
     fetchCounts();
     const interval = setInterval(fetchCounts, 10 * 60 * 1000);
@@ -55,7 +55,7 @@ export function AppSidebar({ user }) {
         setUpdateAvailable(updateAvailable);
         setChangelog(changelog);
       })
-      .catch(() => {});
+      .catch((err) => console.warn('[sidebar] Failed to fetch version:', err.message));
   }, []);
 
   return (

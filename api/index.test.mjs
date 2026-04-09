@@ -29,7 +29,7 @@ vi.mock('../lib/cluster/runtime.js', () => ({ handleClusterWebhook: vi.fn() }));
 
 // ── Import module under test + mocked deps ──────────────────────────────────
 
-const { GET, POST } = await import('./index.js');
+const { GET, POST, _resetForTest } = await import('./index.js');
 const { createAgentJob } = await import('../lib/tools/create-agent-job.js');
 const { setWebhook } = await import('../lib/tools/telegram.js');
 const { getAgentJobStatus, fetchAgentJobLog } = await import('../lib/tools/github.js');
@@ -63,9 +63,10 @@ function authed(method, path, opts = {}) {
   });
 }
 
-/** Flush fire-and-forget async work (e.g. processChannelMessage) */
+/** Flush fire-and-forget async work (e.g. processChannelMessage).
+ *  Two ticks to drain chained awaits (receive → chat → sendResponse). */
 function flushAsync() {
-  return new Promise((r) => setTimeout(r, 0));
+  return new Promise((r) => setTimeout(r, 0)).then(() => new Promise((r) => setTimeout(r, 0)));
 }
 
 // ── Setup ───────────────────────────────────────────────────────────────────
@@ -74,6 +75,7 @@ const savedAuthUrl = process.env.AUTH_URL;
 
 beforeEach(() => {
   vi.resetAllMocks();
+  _resetForTest();
   vi.spyOn(console, 'error').mockImplementation(() => {});
   vi.spyOn(console, 'log').mockImplementation(() => {});
   rateLimit.mockReturnValue({ allowed: true });
@@ -126,8 +128,7 @@ describe('checkAuth', () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-// POST /telegram/webhook — ORDER MATTERS: no-token test MUST run first
-// (getTelegramBotToken caches truthy values in module scope)
+// POST /telegram/webhook
 // ═════════════════════════════════════════════════════════════════════════════
 
 describe('POST /telegram/webhook', () => {
@@ -149,7 +150,7 @@ describe('POST /telegram/webhook', () => {
   });
 
   it('processes message asynchronously and returns ok', async () => {
-    // bot token cached from previous test ('bot-tok')
+    getConfig.mockImplementation((k) => (k === 'TELEGRAM_BOT_TOKEN' ? 'bot-tok' : null));
     const stopFn = vi.fn();
     const adapter = {
       receive: vi.fn().mockResolvedValue({
@@ -172,6 +173,7 @@ describe('POST /telegram/webhook', () => {
   });
 
   it('sends error message when chat() rejects', async () => {
+    getConfig.mockImplementation((k) => (k === 'TELEGRAM_BOT_TOKEN' ? 'bot-tok' : null));
     const adapter = {
       receive: vi.fn().mockResolvedValue({
         threadId: 't-2', text: 'hi', attachments: [], metadata: { chatId: 1 },

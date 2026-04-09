@@ -14,7 +14,7 @@ import {
 
 function ThreadItem({ thread, isActive, onNavigate }) {
   const updatedAt = thread.updatedAt ? new Date(thread.updatedAt).getTime() : null;
-  const isReady = thread.container_status === 'ready';
+  const isReady = thread.containerStatus === 'ready';
 
   return (
     <SidebarMenuItem>
@@ -110,7 +110,7 @@ export function ProjectSidebar({ user }) {
           setExpandedProjects(new Set(data.map((p) => p.id)));
         }
       } catch (err) {
-        console.error('Failed to load projects:', err);
+        console.warn('[project-sidebar] Failed to load projects:', err.message);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -156,7 +156,7 @@ export function ProjectSidebar({ user }) {
         <ProjectFolder
           key={project.id}
           project={project}
-          threads={project.threads || []}
+          threads={project.recentChats || []}
           expanded={expandedProjects.has(project.id)}
           onToggle={() => toggleProject(project.id)}
           activeChatId={activeChatId}

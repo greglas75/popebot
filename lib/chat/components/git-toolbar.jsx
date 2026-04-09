@@ -20,7 +20,7 @@ export function GitToolbar({ workspaceId, containerName, diffStats: externalDiff
     fetch(`/code/workspace-diff/${workspaceId}`)
       .then(r => r.json())
       .then(r => { if (r.success !== false) setDiffStats(r); })
-      .catch(() => {});
+      .catch((err) => console.warn('[git-toolbar] Failed to fetch diff stats:', err.message));
   }, [workspaceId, containerName]);
 
   // Close dropdown on outside click
@@ -47,8 +47,9 @@ export function GitToolbar({ workspaceId, containerName, diffStats: externalDiff
     setOpen(false);
     try {
       let body = { workspaceId, action };
-      if (action === 'commit') {
-        const message = window.prompt('Commit message:');
+      if (action === 'commit' || action === 'create-branch') {
+        const label = action === 'commit' ? 'Commit message:' : 'Branch name:';
+        const message = window.prompt(label);
         if (!message) { setBusy(null); return; }
         body.message = message;
       }
