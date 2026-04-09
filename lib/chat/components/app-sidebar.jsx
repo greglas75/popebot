@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { CirclePlusIcon, PanelLeftIcon, MessageIcon, ClusterIcon, BellIcon, ContainerIcon, ArrowUpCircleIcon, LifeBuoyIcon, GitPullRequestIcon } from './icons.js';
+import { ProjectSidebar } from './project-sidebar.js';
 import { SidebarHistory } from './sidebar-history.js';
 import { SidebarUserNav } from './sidebar-user-nav.js';
 import { UpgradeDialog } from './upgrade-dialog.js';
@@ -275,6 +276,8 @@ export function AppSidebar({ user }) {
             </SidebarMenuItem>
           </SidebarMenu>
 
+          <div className="mx-4 border-t border-border" />
+          <ProjectSidebar user={user} />
           <div className="mx-4 border-t border-border" />
           <SidebarHistory />
         </SidebarContent>

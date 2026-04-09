@@ -74,5 +74,10 @@ export async function register() {
   const { startMaintenanceCron } = await import('../lib/maintenance.js');
   startMaintenanceCron();
 
+  // Audit persistent container status (reconcile DB with Docker reality)
+  import('../lib/containers/lifecycle.js')
+    .then(({ auditContainersOnStartup }) => auditContainersOnStartup())
+    .catch((err) => console.warn('[startup] Container audit skipped:', err.message));
+
   console.log('thepopebot initialized');
 }

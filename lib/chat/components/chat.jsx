@@ -11,7 +11,8 @@ import { RepoBranchPicker, WorkspaceBar } from './code-mode-toggle.js';
 import { getAvailableAgents } from '../actions.js';
 import dynamic from 'next/dynamic';
 const DiffViewer = dynamic(() => import('./diff-viewer.js').then(m => ({ default: m.DiffViewer })), { ssr: false });
-import { cn } from '../utils.js';
+import { TerminalPanel } from './terminal-panel.js';
+import { GitToolbar } from './git-toolbar.js';
 
 const fetchRepositories = () =>
   fetch('/code/repositories')
@@ -27,11 +28,11 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
   const [input, setInput] = useState('');
   const [files, setFiles] = useState([]);
   const hasNavigated = useRef(false);
-  const [codeMode, setCodeMode] = useState(chatMode === 'code');
+  const codeMode = true; // Agent/Code split removed — always code mode
   const [codeModeType, setCodeModeType] = useState(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem(`codeModeType:${chatId}`);
-      if (stored === 'plan' || stored === 'code' || stored === 'job') return stored;
+      if (stored === 'plan' || stored === 'code') return stored;
     }
     return 'code';
   });
@@ -78,28 +79,11 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
     }
   }, [codingModel]);
 
-  const [defaultRepo, setDefaultRepo] = useState(null);
   const [repo, setRepo] = useState(workspace?.repo || '');
   const [branch, setBranch] = useState(workspace?.branch || '');
   const [workspaceState, setWorkspaceState] = useState(workspace);
   const [diffStats, setDiffStats] = useState(null);
   const [showDiff, setShowDiff] = useState(false);
-
-  // Fetch default repo for agent mode on mount
-  // Uses fetch instead of server action to avoid Next.js page revalidation
-  useEffect(() => {
-    fetch('/code/default-repo')
-      .then(res => res.json())
-      .then(({ repo: r }) => {
-        if (r) {
-          setDefaultRepo(r);
-          if (!workspace && !repo && !codeMode) {
-            setRepo(r);
-            setBranch('main');
-          }
-        }
-      }).catch(() => {});
-  }, []);
 
   // Auto-forward to interactive workspace — only on toggle, not on mount
   const hasMounted = useRef(false);
@@ -250,30 +234,10 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
 
   // Interactive mode is active if containerName is set
   const isInteractiveActive = !!workspaceState?.containerName;
-  const [togglingMode, setTogglingMode] = useState(false);
-
-  const handleInteractiveToggle = useCallback(async () => {
-    if (!workspaceState?.id || togglingMode || isInteractiveActive) return;
-    setTogglingMode(true);
-    try {
-      const { startInteractiveMode } = await import('../../code/actions.js');
-      const result = await startInteractiveMode(workspaceState.id);
-      if (result.containerName) {
-        setWorkspaceState(prev => ({ ...prev, containerName: result.containerName }));
-      }
-    } catch (err) {
-      console.error('Failed to toggle mode:', err);
-    } finally {
-      setTogglingMode(false);
-    }
-  }, [workspaceState?.id, togglingMode, isInteractiveActive]);
 
   const codeModeSettings = {
     mode: codeModeType,
     onModeChange: setCodeModeType,
-    isInteractiveActive,
-    onInteractiveToggle: handleInteractiveToggle,
-    togglingMode,
     codingAgent,
     codingModel,
     availableAgents,
@@ -334,92 +298,14 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
               />
             </div>
             <div className="mt-5 pb-8">
-              {codeMode && (
-                <RepoBranchPicker
-                  repo={repo}
-                  onRepoChange={setRepo}
-                  branch={branch}
-                  onBranchChange={handleBranchChange}
-                  getRepositories={fetchRepositories}
-                  getBranches={fetchBranches}
-                />
-              )}
-              <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = !codeMode;
-                    setCodeMode(next);
-                    if (next) {
-                      // Entering code mode — clear agent mode's default repo
-                      setRepo('');
-                      setBranch('');
-                    } else if (defaultRepo) {
-                      setRepo(defaultRepo);
-                      setBranch('main');
-                    } else {
-                      setRepo('');
-                      setBranch('');
-                    }
-                  }}
-                  className="inline-flex items-center gap-2 group"
-                  role="switch"
-                  aria-checked={codeMode}
-                  aria-label="Toggle Code mode"
-                >
-                  <span className={cn(
-                    'text-xs transition-colors',
-                    !codeMode ? 'font-bold text-foreground' : 'font-medium text-muted-foreground group-hover:text-foreground'
-                  )}>
-                    Agent
-                  </span>
-                  <span
-                    className={cn(
-                      'relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200',
-                      codeMode ? 'bg-primary' : 'bg-muted-foreground/30'
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        'absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200',
-                        codeMode && 'translate-x-4'
-                      )}
-                    />
-                  </span>
-                  <span className={cn(
-                    'text-xs transition-colors',
-                    codeMode ? 'font-bold text-foreground' : 'font-medium text-muted-foreground group-hover:text-foreground'
-                  )}>
-                    Code
-                  </span>
-                </button>
-                {availableAgents.length > 0 && (
-                  <select
-                    value={codingAgent}
-                    onChange={(e) => setCodingAgent(e.target.value)}
-                    className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-foreground transition-colors"
-                  >
-                    {availableAgents.map((a) => (
-                      <option key={a.value} value={a.value}>{a.label}</option>
-                    ))}
-                  </select>
-                )}
-                {availableAgents.length > 0 && (() => {
-                  const agent = availableAgents.find(a => a.value === codingAgent);
-                  const models = agent?.models || [];
-                  return models.length > 0 ? (
-                    <select
-                      value={codingModel || models[0]?.value || ''}
-                      onChange={(e) => setCodingModel(e.target.value)}
-                      className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-foreground transition-colors"
-                    >
-                      {models.map((m) => (
-                        <option key={m.value} value={m.value}>{m.label}</option>
-                      ))}
-                    </select>
-                  ) : null;
-                })()}
-              </div>
+              <RepoBranchPicker
+                repo={repo}
+                onRepoChange={setRepo}
+                branch={branch}
+                onBranchChange={handleBranchChange}
+                getRepositories={fetchRepositories}
+                getBranches={fetchBranches}
+              />
             </div>
           </div>
         </div>
@@ -441,16 +327,23 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
                 <div className="mx-auto w-full max-w-4xl">
                   {workspaceState && (
                     <div className="rounded-t-xl border border-b-0 border-border px-3 py-2.5 bg-background">
-                      <WorkspaceBar
-                        repo={repo}
-                        branch={branch}
-                        onBranchChange={handleBranchChange}
-                        getBranches={fetchBranches}
-                        workspace={workspaceState}
-                        diffStats={diffStats}
-                        onDiffStatsRefresh={handleDiffStatsRefresh}
-                        onShowDiff={() => setShowDiff(true)}
-                      />
+                      <div className="flex items-center gap-2">
+                        <WorkspaceBar
+                          repo={repo}
+                          branch={branch}
+                          onBranchChange={handleBranchChange}
+                          getBranches={fetchBranches}
+                          workspace={workspaceState}
+                          diffStats={diffStats}
+                          onDiffStatsRefresh={handleDiffStatsRefresh}
+                          onShowDiff={() => setShowDiff(true)}
+                        />
+                        <GitToolbar
+                          workspaceId={workspaceState?.id}
+                          containerName={workspaceState?.containerName}
+                          diffStats={diffStats}
+                        />
+                      </div>
                     </div>
                   )}
                   <ChatInput
@@ -493,16 +386,23 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
                 )}
                 {workspaceState && (
                   <div className="rounded-t-xl border border-b-0 border-border px-3 py-2.5">
-                    <WorkspaceBar
-                      repo={repo}
-                      branch={branch}
-                      onBranchChange={handleBranchChange}
-                      getBranches={fetchBranches}
-                      workspace={workspaceState}
-                      diffStats={diffStats}
-                      onDiffStatsRefresh={handleDiffStatsRefresh}
-                      onShowDiff={() => setShowDiff(true)}
-                    />
+                    <div className="flex items-center gap-2">
+                      <WorkspaceBar
+                        repo={repo}
+                        branch={branch}
+                        onBranchChange={handleBranchChange}
+                        getBranches={fetchBranches}
+                        workspace={workspaceState}
+                        diffStats={diffStats}
+                        onDiffStatsRefresh={handleDiffStatsRefresh}
+                        onShowDiff={() => setShowDiff(true)}
+                      />
+                      <GitToolbar
+                        workspaceId={workspaceState?.id}
+                        containerName={workspaceState?.containerName}
+                        diffStats={diffStats}
+                      />
+                    </div>
                   </div>
                 )}
                 <ChatInput
@@ -525,6 +425,7 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
           )}
         </div>
       )}
+      <TerminalPanel workspaceId={workspaceState?.id} containerName={workspaceState?.containerName} />
     </div>
   );
 }

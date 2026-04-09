@@ -273,7 +273,7 @@ export function ChatInput({ input, setInput, onSubmit, status, stop, files, setF
                 <PaperclipIcon size={16} />
               </button>
 
-              {/* Plan/Code/Job dropdown */}
+              {/* Plan/Code dropdown */}
               {codeModeSettings && (
                 <div className="relative" ref={dropdownRef}>
                   <button
@@ -283,12 +283,10 @@ export function ChatInput({ input, setInput, onSubmit, status, stop, files, setF
                       'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors',
                       codeModeSettings.mode === 'code'
                         ? 'bg-green-500/15 text-green-500 hover:bg-green-500/25'
-                        : codeModeSettings.mode === 'job'
-                          ? 'bg-blue-500/15 text-blue-500 hover:bg-blue-500/25'
-                          : 'bg-destructive/10 text-destructive hover:bg-destructive/20'
+                        : 'bg-destructive/10 text-destructive hover:bg-destructive/20'
                     )}
                   >
-                    {codeModeSettings.mode === 'code' ? 'Code' : codeModeSettings.mode === 'job' ? 'Job' : 'Plan'} &#9662;
+                    {codeModeSettings.mode === 'code' ? 'Code' : 'Plan'} &#9662;
                   </button>
                   {modeDropdownOpen && (
                     <div className="absolute bottom-full left-0 mb-1 rounded-lg border border-border bg-background shadow-lg py-1 min-w-[100px] z-50">
@@ -312,18 +310,6 @@ export function ChatInput({ input, setInput, onSubmit, status, stop, files, setF
                       >
                         Code
                       </button>
-                      {!codeMode && (
-                        <button
-                          type="button"
-                          onClick={() => { codeModeSettings.onModeChange('job'); setModeDropdownOpen(false); }}
-                          className={cn(
-                            'w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors',
-                            codeModeSettings.mode === 'job' ? 'text-blue-500 font-medium' : 'text-foreground'
-                          )}
-                        >
-                          Job
-                        </button>
-                      )}
                     </div>
                   )}
                 </div>
@@ -357,37 +343,6 @@ export function ChatInput({ input, setInput, onSubmit, status, stop, files, setF
                   </select>
                 ) : null;
               })()}
-
-              {/* Interactive toggle */}
-              {codeModeSettings && !codeModeSettings.isInteractiveActive && (
-                <button
-                  type="button"
-                  onClick={codeModeSettings.onInteractiveToggle}
-                  disabled={codeModeSettings.togglingMode || codeModeSettings.isInteractiveActive}
-                  className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {codeModeSettings.togglingMode && (
-                    <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                  )}
-                  <span
-                    className={cn(
-                      'relative inline-flex h-3.5 w-6 shrink-0 rounded-full transition-colors duration-200',
-                      codeModeSettings.isInteractiveActive ? 'bg-primary' : 'bg-muted-foreground/30'
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        'absolute top-0.5 left-0.5 h-2.5 w-2.5 rounded-full bg-white shadow-sm transition-transform duration-200',
-                        codeModeSettings.isInteractiveActive && 'translate-x-2.5'
-                      )}
-                    />
-                  </span>
-                  {codeModeSettings.togglingMode ? 'Launching...' : 'Interactive'}
-                </button>
-              )}
 
               <input
                 ref={fileInputRef}
