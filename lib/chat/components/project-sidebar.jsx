@@ -52,7 +52,7 @@ function ProjectFolder({ project, threads, expanded, onToggle, activeChatId, onN
         className="flex w-full items-center gap-2 px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent rounded-md transition-colors"
       >
         <FolderIcon size={14} />
-        <span className="flex-1 truncate text-left">{project.name}</span>
+        <span className="flex-1 truncate text-left">{project.title || project.name || 'Untitled'}</span>
         {expanded ? (
           <ChevronDownIcon size={14} className="text-muted-foreground" />
         ) : (

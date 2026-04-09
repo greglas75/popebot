@@ -233,8 +233,8 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
     sendMessage({ text: newText });
   }, [messages, setMessages, sendMessage]);
 
-  // Interactive mode is active if containerName is set
-  const isInteractiveActive = !!workspaceState?.containerName;
+  // Interactive mode disabled — persistent containers handle chat directly
+  const isInteractiveActive = false;
 
   const codeModeSettings = {
     mode: codeModeType,
