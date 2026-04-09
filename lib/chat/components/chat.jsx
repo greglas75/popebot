@@ -107,6 +107,7 @@ export function Chat({ chatId, initialMessages = [], workspace = null, chatMode 
         body: () => ({
           chatId,
           codeMode: codeModeRef.current.codeMode,
+          persistentContainer: true,
           codeModeType: codeModeRef.current.codeModeType,
           repo: codeModeRef.current.repo,
           branch: codeModeRef.current.branch,
