@@ -17,5 +17,10 @@ if [ "$CONTINUE_SESSION" = "1" ] && [ -f "$SESSION_FILE" ]; then
     fi
 fi
 
+# Start SDK server for chat UI (persistent session, no per-message init)
+node /scripts/sdk-server.mjs &
+SDK_PID=$!
+echo "[interactive] SDK server started (PID $SDK_PID) on :${SDK_PORT:-7682}"
+
 tmux -u new-session -d -s claude -e PORT="${PORT:-7681}" "${CLAUDE_ARGS[@]}"
 exec ttyd --writable -p "${PORT:-7681}" tmux attach -t claude

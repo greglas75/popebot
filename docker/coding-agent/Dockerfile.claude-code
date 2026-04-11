@@ -3,7 +3,7 @@ FROM ${BASE_IMAGE}
 
 USER root
 
-RUN npm install -g @anthropic-ai/claude-code @openai/codex @google/gemini-cli
+RUN npm install -g @anthropic-ai/claude-code @anthropic-ai/claude-agent-sdk @openai/codex @google/gemini-cli
 
 # Cursor Agent CLI
 RUN curl https://cursor.com/install -fsS | bash || true
