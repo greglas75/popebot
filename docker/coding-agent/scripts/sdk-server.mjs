@@ -12,29 +12,40 @@
  */
 
 import http from 'node:http';
-import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
 
-const SDK_PATH = (() => {
-  // Try global install first, then local
-  const paths = [
-    '/usr/lib/node_modules/@anthropic-ai/claude-agent-sdk',
-    resolve(process.cwd(), 'node_modules/@anthropic-ai/claude-agent-sdk'),
-  ];
-  for (const p of paths) {
-    try { require.resolve(p); return p; } catch {}
+// ES module import needs absolute file path or package in local node_modules.
+// Global install at /usr/lib/node_modules needs explicit file URL.
+const SDK_URL = (() => {
+  const globalPath = '/usr/lib/node_modules/@anthropic-ai/claude-agent-sdk';
+  if (existsSync(`${globalPath}/package.json`)) {
+    return `file://${globalPath}/sdk.mjs`;
   }
-  // Dynamic import resolution
   return '@anthropic-ai/claude-agent-sdk';
 })();
 
 let sdk = null;
-let session = null;
 let currentModel = process.env.LLM_MODEL || 'claude-sonnet-4-6';
 let busy = false;
 
 async function loadSdk() {
   if (!sdk) {
-    sdk = await import(SDK_PATH);
+    try {
+      sdk = await import(SDK_URL);
+    } catch (err) {
+      // Fallback: try importing from exports
+      console.error(`[sdk-server] Failed to import ${SDK_URL}:`, err.message);
+      // Read package.json to find main entry
+      const pkg = JSON.parse(
+        await import('node:fs/promises').then(fs =>
+          fs.readFile('/usr/lib/node_modules/@anthropic-ai/claude-agent-sdk/package.json', 'utf-8')
+        )
+      );
+      const entry = pkg.exports?.['.']?.import || pkg.exports?.['.']?.default || pkg.main || 'sdk.mjs';
+      const entryUrl = `file:///usr/lib/node_modules/@anthropic-ai/claude-agent-sdk/${entry.replace(/^\.\//, '')}`;
+      console.log(`[sdk-server] Retry with ${entryUrl}`);
+      sdk = await import(entryUrl);
+    }
   }
   return sdk;
 }
